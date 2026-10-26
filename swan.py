@@ -1996,21 +1996,27 @@ class Interpreter:
         name = getattr(fn, "name", "task")
         task = Task(name)
         def work():
+            try:
+                task.value = self.call(fn, args, kwargs, call_node)
+            except SwanError as e:
+                task.error = e
+            except RecursionError:
+                task.error = SwanError(f"{name} went too deep (a function kept calling itself).",
+                                       call_node.line, call_node.col)
+            except Exception as e:
+                task.error = SwanError(f"Something went wrong inside {name}: {e}", call_node.line, call_node.col)
+            finally:
+                task.done.set()
+        def in_own_thread():
             with self.baton:
                 self.local.task = task
-                try:
-                    task.value = self.call(fn, args, kwargs, call_node)
-                except SwanError as e:
-                    task.error = e
-                except RecursionError:
-                    task.error = SwanError(f"{name} went too deep (a function kept calling itself).",
-                                           call_node.line, call_node.col)
-                except Exception as e:
-                    task.error = SwanError(f"Something went wrong inside {name}: {e}", call_node.line, call_node.col)
-                finally:
-                    task.done.set()
+                work()
         self.tasks.append(task)
-        threading.Thread(target=work, daemon=True).start()
+        try:
+            threading.Thread(target=in_own_thread, daemon=True).start()
+        except RuntimeError:
+            # some places (like a web browser) can't start threads: run the task right away instead
+            work()
         return task
 
     def e_Spawn(self, n, env):

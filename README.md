@@ -16,7 +16,11 @@
 </p>
 
 <p align="center">
-  <a href="#try-it-in-lake-the-swan-editor">Try it</a> ·
+  <a href="https://advaithsajith.github.io/swan/lake/"><img alt="Try Swan in your browser" src="https://img.shields.io/badge/%E2%96%B6%20%20Try%20Swan%20in%20your%20browser-no%20install-C7A6F2?style=for-the-badge&labelColor=1A1626"></a>
+</p>
+
+<p align="center">
+  <a href="#try-it-in-lake-the-swan-editor">Install it</a> ·
   <a href="GUIDE.md">Learn it</a> ·
   <a href="#the-language">Language tour</a> ·
   <a href="examples">Examples</a>
@@ -50,7 +54,10 @@
 
 ## Try it in Lake, the Swan editor
 
-You only need Python 3.8 or newer. From this folder, run:
+**No install:** open [Lake in your browser](https://advaithsajith.github.io/swan/lake/). Swan runs right
+inside the page; your files are saved in your browser.
+
+**On your computer** you only need Python 3.8 or newer. Download this repository, then from its folder run:
 
 ```bash
 python swan.py lake

@@ -201,6 +201,10 @@ button { font: inherit; color: inherit; }
     </div>
     <div class="crumb" id="crumb"></div>
     <div class="spacer"></div>
+    <a class="btn quiet" href="https://github.com/advaithsajith/swan" target="_blank" rel="noopener" title="Swan on GitHub">
+      <svg viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span class="label">GitHub</span>
+    </a>
     <button class="btn quiet" id="themeBtn" title="Switch between Black Swan and Swan Lake themes">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor"/></svg>
       <span class="label" id="themeName">Black Swan</span>
@@ -576,19 +580,114 @@ function changed() {
   store.set("draft:" + state.current, text.value);
 }
 
-/* ───────────── server ───────────── */
+/* ───────────── where Swan runs ───────────── */
+// On your computer (swan lake), a small local server runs Swan.
+// On the web, Swan runs inside the page itself, in a worker.
 
 async function api(path, body) {
   const res = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return res.json();
 }
 
+function serverBackend() {
+  let runId = null;
+  return {
+    web: false,
+    ready: () => Promise.resolve(),
+    files: () => api("/api/files"),
+    read: async name => (await api(`/api/file?path=${encodeURIComponent(name)}`)).content,
+    save: (name, code) => api("/api/save", { path: name, code }),
+    check: code => api("/api/check", { code }),
+    async run(job, lines, done) {
+      const r = await api("/api/run", job);
+      runId = r.id;
+      let from = 0;
+      const poll = async () => {
+        if (runId !== r.id) return;
+        let p;
+        try { p = await api(`/api/poll?id=${r.id}&from=${from}`); } catch { return setTimeout(poll, 300); }
+        if (runId !== r.id) return;
+        lines(p.output);
+        from += p.output.length;
+        if (!p.done) return setTimeout(poll, 70);
+        runId = null;
+        done(p);
+      };
+      poll();
+    },
+    async stop() { if (runId) await api("/api/stop", { id: runId }).catch(() => {}); },
+  };
+}
+
+const WEB_EXAMPLES = ["hello", "tour", "pillars", "polymorphism", "glide", "choices", "flock", "bank", "fizzbuzz", "readme_demo"]
+  .map(n => `examples/${n}.swan`);
+
+function webBackend() {
+  let worker, readyPromise, version = "", pending = {}, nextId = 1, running = null;
+  function wake() {
+    worker = new Worker("worker.js");
+    readyPromise = new Promise((resolve, reject) => {
+      worker.onmessage = e => {
+        const m = JSON.parse(e.data);
+        if (m.type === "ready") { version = m.version; resolve(); }
+        else if (m.type === "failed") reject(new Error(m.message));
+        else if (m.type === "out" && running) running.lines(m.text.replace(/\n$/, "").split("\n"));
+        else if (m.type === "done" && running) { const r = running; running = null; r.done(m); }
+        else if (m.type === "reply" && pending[m.id]) { pending[m.id](m); delete pending[m.id]; }
+      };
+    });
+  }
+  wake();
+  const myFiles = () => { try { return Object.keys(localStorage).filter(k => k.startsWith("lake:file:")).map(k => k.slice(10)); } catch { return []; } };
+  return {
+    web: true,
+    ready: () => readyPromise,
+    files: async () => ({ files: [...new Set([...WEB_EXAMPLES, ...myFiles()])], version }),
+    async read(name) {
+      const mine = store.get("file:" + name);
+      if (mine !== null) return mine;
+      const r = await fetch("../" + name);
+      return r.ok ? r.text() : "";
+    },
+    async save(name, code) { store.set("file:" + name, code); return { browser: true }; },
+    check: code => readyPromise.then(() => new Promise(resolve => {
+      const id = nextId++;
+      pending[id] = resolve;
+      worker.postMessage({ kind: "check", id, code });
+    })),
+    run(job, lines, done) {
+      running = { lines, done };
+      readyPromise.then(() => worker.postMessage({ kind: "run", id: 0, ...job }),
+                        e => { running = null; done({ error: { message: "Swan couldn't load in this browser: " + e.message, line: 0 } }); });
+    },
+    stop() {
+      if (!running) return;
+      const r = running;
+      running = null; pending = {};
+      worker.terminate();
+      wake();
+      r.done({ error: { message: "Stopped." }, seconds: null });
+    },
+  };
+}
+
+async function pickBackend() {
+  try {
+    const r = await fetch("/api/files");
+    if (r.ok && (r.headers.get("content-type") || "").includes("json")) return serverBackend();
+  } catch {}
+  return webBackend();
+}
+
+let backend = null;
+
 let checkTimer = null;
 function scheduleCheck() {
+  if (!backend) return;
   clearTimeout(checkTimer);
   checkTimer = setTimeout(async () => {
     try {
-      const r = await api("/api/check", { code: text.value });
+      const r = await backend.check(text.value);
       state.check = r.error;
       showProblem();
       redraw();
@@ -611,33 +710,29 @@ function setStatus(kind, msg) {
 }
 
 async function start(mode) {
+  if (!backend) return;
   if (state.run) await stop();
+  const runNumber = state.run = (state.runCount = (state.runCount || 0) + 1);
   switchTab("out");
-  state.error = null;
+  state.error = null; state.polled = 0;
   $("output").innerHTML = "";
-  setStatus("running", mode === "test" ? "Running the tests…" : "Gliding…");
+  setStatus("running", backend.web && !state.ready ? "Waking the swan… the very first run takes a few seconds." :
+                       mode === "test" ? "Running the tests…" : "Gliding…");
   $("runBtn").hidden = true; $("stopBtn").hidden = false;
   try {
-    const r = await api("/api/run", { code: text.value, mode, input: $("answers").value, filename: state.current || "untitled.swan" });
-    state.run = r.id; state.polled = 0;
-    poll(r.id);
+    await backend.run({ code: text.value, mode, input: $("answers").value, filename: state.current || "untitled.swan" },
+      lines => { if (state.run === runNumber) { appendOutput(lines); state.polled += lines.length; } },
+      result => { if (state.run === runNumber) finished(result); });
   } catch {
     finish();
     setStatus("bad", "Lake lost touch with Swan. Is the swan lake window still open?");
   }
 }
 
-async function poll(id) {
-  if (state.run !== id) return;
-  let r;
-  try { r = await api(`/api/poll?id=${id}&from=${state.polled}`); } catch { return setTimeout(() => poll(id), 300); }
-  if (state.run !== id) return;
-  appendOutput(r.output);
-  state.polled += r.output.length;
-  if (!r.done) return setTimeout(() => poll(id), 70);
+function finished(r) {
   finish();
   if (r.error) {
-    if (r.error.message === "Stopped.") { setStatus("bad", `Stopped after ${r.seconds}s.`); return; }
+    if (r.error.message === "Stopped.") { setStatus("bad", r.seconds ? `Stopped after ${r.seconds}s.` : "Stopped."); return; }
     state.error = r.error;
     showError(r.error);
     setStatus("bad", r.error.line ? `Stopped at line ${r.error.line}.` : "Stopped.");
@@ -655,9 +750,8 @@ function finish() {
 }
 
 async function stop() {
-  const id = state.run;
-  if (!id) return;
-  await api("/api/stop", { id }).catch(() => {});
+  if (!state.run || !backend) return;
+  await backend.stop();
 }
 
 function appendOutput(lines) {
@@ -717,7 +811,8 @@ function scheduleDocs() {
 async function renderDocs() {
   const box = $("docs");
   let r;
-  try { r = await api("/api/docs", { code: text.value }); } catch { return; }
+  if (!backend) return;
+  try { r = await backend.check(text.value); } catch { return; }
   if (r.error) { box.innerHTML = `<div class="empty"><h4>Fix the problem first</h4>Line ${r.error.line}: ${esc(r.error.message)}</div>`; return; }
   if (!r.entries.length) {
     box.innerHTML = `<div class="empty"><h4>Docs write themselves</h4>Every function, shape, ability and choice in this file appears here.<br><br>Add notes by writing lines that start with <code>---</code> just above them:<pre style="font:13px/20px var(--mono);margin-top:10px">${colourCode("--- Works out the area of a circle.", {})}\n${colourCode("fn area(radius: number) -> number", {})}\n${colourCode("    pi * radius ** 2", {})}</pre></div>`;
@@ -775,9 +870,9 @@ async function open(name) {
   if (!state.buffers[name]) {
     text.readOnly = true;
     try {
-      const r = await api(`/api/file?path=${encodeURIComponent(name)}`);
+      const content = await backend.read(name);
       const draft = store.get("draft:" + name);
-      state.buffers[name] = { content: draft !== null && draft !== r.content ? draft : r.content, saved: r.content };
+      state.buffers[name] = { content: draft !== null && draft !== content ? draft : content, saved: content };
     } finally {
       text.readOnly = false;
     }
@@ -803,14 +898,15 @@ async function save() {
     delete state.buffers[old];
     state.current = name;
   }
-  const r = await api("/api/save", { path: name, code: text.value });
+  const r = await backend.save(name, text.value);
   if (r.error) return toast(r.error);
+  if (r.browser) toast(`Saved ${name} in this browser`);
   state.buffers[name].saved = text.value;
   if (!state.files.includes(name)) state.files.push(name);
   store.set("last", name);
   try { localStorage.removeItem("lake:draft:" + name); } catch {}
   renderFiles();
-  toast(`Saved ${name}`);
+  if (!r.browser) toast(`Saved ${name}`);
 }
 
 function newFile() {
@@ -873,10 +969,20 @@ document.addEventListener("keydown", e => {
   if (document.fonts) document.fonts.ready.then(() => { measure(); redraw(); });
   measure();
   emptyOutput();
+  backend = await pickBackend();
   let info = { files: [], version: "" };
-  try { info = await api("/api/files"); } catch {}
+  try { info = await backend.files(); } catch {}
   state.files = info.files;
   $("version").textContent = `Swan ${info.version}`;
+  if (backend.web) {
+    setStatus("running", "Waking the swan… loading Swan into your browser.");
+    backend.ready().then(async () => {
+      state.ready = true;
+      $("version").textContent = `Swan ${(await backend.files()).version} · in your browser`;
+      if (!state.run) setStatus("", "Ready when you are.");
+      scheduleCheck();
+    }, () => setStatus("bad", "Swan couldn't load in this browser. Try another browser, or install Swan."));
+  }
   const last = store.get("last");
   const pick = info.files.includes(last) ? last : info.files.find(f => /(^|\/)hello\.swan$/.test(f)) || info.files[0];
   if (pick) {

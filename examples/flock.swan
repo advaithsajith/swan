@@ -24,7 +24,8 @@ flock
 say weather
 say tickets
 say "{swans} swans on the lake"
-say "Three one-second jobs finished in {round(now() - started, 1)}s, not 3s."
+say "All three landed after {round(now() - started, 1)}s."
+-- (about 1 second when run with swan; in the web version of Lake, tasks take turns instead)
 
 
 -- For more control: spawn starts a task, await collects its answer.
