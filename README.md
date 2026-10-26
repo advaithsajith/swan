@@ -1,16 +1,48 @@
-# Swan
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
+  <img alt="Swan, a graceful programming language" src="assets/banner-light.svg" width="100%">
+</picture>
 
-*A graceful programming language.* Code that reads like a sentence, glides like a pipeline,
-and tells you kindly what went wrong.
+<p align="center">
+  <a href="https://github.com/advaithsajith/swan/actions/workflows/check.yml"><img alt="checks" src="https://github.com/advaithsajith/swan/actions/workflows/check.yml/badge.svg"></a>
+  <img alt="version 0.3 preview" src="https://img.shields.io/badge/version-0.3%20preview-C7A6F2?style=flat-square">
+  <img alt="Python 3.8+" src="https://img.shields.io/badge/python-3.8%2B-8FB8F7?style=flat-square&logo=python&logoColor=white">
+  <img alt="no dependencies" src="https://img.shields.io/badge/dependencies-none-F2C4D6?style=flat-square">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7FD6C2?style=flat-square"></a>
+</p>
 
-```swan
-shape Swan(name, color = "white") can Glide
+<p align="center">
+  <b>Code that reads like a sentence, glides like a pipeline, and tells you kindly what went wrong.</b>
+</p>
 
-let black_swans = glide lake
-    keep color == "black"
-    sort name
-    pick name
-```
+<p align="center">
+  <a href="#try-it-in-lake-the-swan-editor">Try it</a> ·
+  <a href="GUIDE.md">Learn it</a> ·
+  <a href="#the-language">Language tour</a> ·
+  <a href="examples">Examples</a>
+</p>
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/code-dark.svg">
+  <img alt="A short Swan program in the Lake editor, with its output" src="assets/code-light.svg" width="100%">
+</picture>
+
+## Why Swan?
+
+<table>
+  <tr>
+    <td width="33%" valign="top"><h3>💬 Kind errors</h3>Points at the exact spot, explains what went wrong in plain words, and suggests the fix.</td>
+    <td width="33%" valign="top"><h3>🌊 glide</h3>Data processing that reads like a sentence: <code>keep</code>, <code>sort</code>, <code>pick</code>, <code>group</code>.</td>
+    <td width="33%" valign="top"><h3>🦢 flock</h3>Run several jobs at the same time, safely. Errors never get lost.</td>
+  </tr>
+  <tr>
+    <td valign="top"><h3>🧩 Shapes &amp; abilities</h3>All four pillars of OOP: <code>hidden</code>, <code>from</code>, outlines and polymorphism.</td>
+    <td valign="top"><h3>🎯 Choices &amp; match</h3>Swan checks that every case is handled, so a forgotten case can't slip through.</td>
+    <td valign="top"><h3>🏞️ Lake editor</h3>Run, test, live error markers, auto-docs, and two themes, all in your browser.</td>
+  </tr>
+</table>
 
 **New to programming?** Start with [GUIDE.md](GUIDE.md): fifteen short lessons with exercises.
 

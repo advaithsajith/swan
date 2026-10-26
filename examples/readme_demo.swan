@@ -1,0 +1,12 @@
+-- A lake of swans, and a glide across it
+
+shape Swan(name, color = "white")
+    fn glide() => "{name} glides without a ripple"
+
+let lake = [Swan("Odette"), Swan("Odile", color: "black")]
+
+let black_swans = glide lake
+    keep color == "black"
+    pick it.glide()
+
+say black_swans
