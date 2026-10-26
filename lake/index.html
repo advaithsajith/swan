@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lake · Swan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0E0D12; --bg-soft: #131118; --bg-sunk: #0A090D; --line: #221F2A; --line-strong: #2F2A3A;
+  --fg: #E6E1EA; --fg-soft: #A79FB4; --fg-faint: #645D72;
+  --accent: #C7A6F2; --accent-soft: rgba(199,166,242,.14); --rose: #F2C4D6;
+  --good: #8FD6A0; --bad: #F28B9B; --bad-soft: rgba(242,139,155,.12); --warn: #F2C27A;
+  --caret: #F2C4D6; --select: rgba(150,120,210,.32); --current: rgba(255,255,255,.025);
+  --t-comment: #5E5870; --t-doc: #8C80A3; --t-control: #C7A6F2; --t-decl: #8FB8F7; --t-special: #F2C4D6;
+  --t-wordop: #C7A6F2; --t-const: #F2A65A; --t-num: #F2A65A; --t-str: #A8D99B; --t-escape: #F2D58A;
+  --t-call: #7FD6C2; --t-fndef: #7FD6C2; --t-type: #F2D58A; --t-prop: #B8C4D9; --t-self: #F2A65A;
+  --t-op: #8D859C; --t-flow: #F2C4D6; --t-range: #F2C4D6; --t-safe: #F2C27A; --t-ref: #F2A65A; --t-step: #F2C4D6;
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --serif: "Cormorant Garamond", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #FAF8F4; --bg-soft: #F4F1EC; --bg-sunk: #EFEBE4; --line: #E7E1EA; --line-strong: #D9D1DE;
+  --fg: #2E2A36; --fg-soft: #6B6377; --fg-faint: #A69FB2;
+  --accent: #7B4FB8; --accent-soft: rgba(123,79,184,.10); --rose: #C2477A;
+  --good: #2E8A4A; --bad: #C23B55; --bad-soft: rgba(194,59,85,.08); --warn: #A6761D;
+  --caret: #7B4FB8; --select: rgba(123,79,184,.20); --current: rgba(80,40,120,.035);
+  --t-comment: #A69FB2; --t-doc: #8A7AA6; --t-control: #7B4FB8; --t-decl: #2F6FB5; --t-special: #C2477A;
+  --t-wordop: #7B4FB8; --t-const: #C26A1F; --t-num: #C26A1F; --t-str: #4C8A3A; --t-escape: #A6761D;
+  --t-call: #1D8A73; --t-fndef: #1D8A73; --t-type: #A6761D; --t-prop: #4F5D75; --t-self: #C26A1F;
+  --t-op: #857D92; --t-flow: #C2477A; --t-range: #C2477A; --t-safe: #A6761D; --t-ref: #C26A1F; --t-step: #C2477A;
+  --shadow: 0 10px 30px rgba(60,40,90,.12);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--sans); overflow: hidden; }
+button { font: inherit; color: inherit; }
+
+.app { display: grid; grid-template-rows: 56px 1fr 28px; height: 100vh; height: 100dvh; }
+
+/* ── top bar ── */
+.top { display: flex; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--bg-soft); min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--fg); text-decoration: none; flex-shrink: 0; }
+.brand svg { width: 30px; height: 30px; color: var(--fg); }
+.brand .word { font: italic 600 26px/1 var(--serif); letter-spacing: .5px; }
+.brand .sub { font-size: 11px; color: var(--fg-faint); letter-spacing: 2px; text-transform: uppercase; margin-top: 3px; }
+.crumb { color: var(--fg-soft); font-family: var(--mono); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb .dot { color: var(--rose); margin-left: 6px; }
+.spacer { flex: 1; }
+.btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line-strong); background: transparent; cursor: pointer; font-size: 13px; color: var(--fg); white-space: nowrap; transition: background .15s, border-color .15s, transform .05s; }
+.btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn svg { width: 14px; height: 14px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn.quiet { border-color: transparent; color: var(--fg-soft); padding: 0 10px; }
+.btn.quiet:hover { color: var(--fg); }
+.btn[hidden] { display: none; }
+.btn .key { font-size: 11px; opacity: .65; font-weight: 400; }
+
+/* ── main area ── */
+.main { display: grid; grid-template-columns: 220px minmax(0, 1fr) minmax(320px, 38%); min-height: 0; }
+.side { border-right: 1px solid var(--line); background: var(--bg-soft); overflow-y: auto; padding: 14px 10px; }
+.side h3 { font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--fg-faint); font-weight: 600; margin: 6px 8px 8px; display: flex; align-items: center; justify-content: space-between; }
+.side h3 button { border: 0; background: none; cursor: pointer; color: var(--fg-soft); font-size: 18px; line-height: 1; padding: 0 4px; border-radius: 6px; }
+.side h3 button:hover { color: var(--accent); }
+.group { font-size: 11px; color: var(--fg-faint); margin: 14px 8px 4px; font-family: var(--mono); }
+.file { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 7px; cursor: pointer; color: var(--fg-soft); font-size: 13px; }
+.file:hover { background: var(--accent-soft); color: var(--fg); }
+.file.active { background: var(--accent-soft); color: var(--fg); box-shadow: inset 2px 0 0 var(--accent); }
+.file .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .mod { margin-left: auto; color: var(--rose); }
+.file svg { width: 13px; height: 13px; flex-shrink: 0; opacity: .6; }
+
+/* ── editor ── */
+.editor { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); min-height: 0; min-width: 0; background: var(--bg); }
+.gutter { position: relative; overflow: hidden; border-right: 1px solid var(--line); background: var(--bg); }
+.gutter-inner { position: absolute; top: 0; right: 0; left: 0; padding: 18px 12px 0 0; text-align: right; font: 13px/22px var(--mono); color: var(--fg-faint); user-select: none; }
+.gutter-inner div.on { color: var(--fg-soft); }
+.gutter-inner div.bad { color: var(--bad); font-weight: 600; }
+.code { position: relative; overflow: hidden; min-width: 0; }
+.code textarea, .code pre { font: 14px/22px var(--mono); padding: 18px 22px 40vh; margin: 0; border: 0; tab-size: 4; white-space: pre; letter-spacing: 0; font-variant-ligatures: none; }
+.code textarea { position: absolute; inset: 0; width: 100%; height: 100%; resize: none; background: transparent; color: transparent; caret-color: var(--caret); outline: none; overflow: auto; z-index: 2; }
+.code textarea::selection { background: var(--select); color: transparent; }
+.code pre { position: absolute; top: 0; left: 0; min-width: 100%; pointer-events: none; color: var(--fg); will-change: transform; }
+.mark { position: absolute; left: 0; right: -2000px; height: 22px; pointer-events: none; }
+.mark.current { background: var(--current); }
+.mark.error { background: var(--bad-soft); box-shadow: inset 3px 0 0 var(--bad); }
+.mark.soft { background: none; }
+.squiggle { position: absolute; height: 22px; pointer-events: none; background: linear-gradient(135deg, transparent 45%, var(--bad) 45%, var(--bad) 55%, transparent 55%) 0 100% / 6px 4px repeat-x, linear-gradient(45deg, transparent 45%, var(--bad) 45%, var(--bad) 55%, transparent 55%) 3px 100% / 6px 4px repeat-x; }
+.squiggle.soft { opacity: .7; }
+
+.t-comment { color: var(--t-comment); font-style: italic; } .t-doc { color: var(--t-doc); font-style: italic; }
+.t-control { color: var(--t-control); } .t-decl { color: var(--t-decl); font-style: italic; }
+.t-special { color: var(--t-special); font-weight: 600; } .t-wordop { color: var(--t-wordop); font-style: italic; }
+.t-const, .t-num { color: var(--t-num); } .t-str { color: var(--t-str); } .t-escape { color: var(--t-escape); }
+.t-interp { color: var(--t-flow); } .t-inner { color: var(--fg); }
+.t-call, .t-fndef { color: var(--t-call); } .t-fndef { font-weight: 600; } .t-builtin { color: var(--t-call); font-style: italic; }
+.t-type { color: var(--t-type); } .t-typedef { color: var(--t-type); font-weight: 600; } .t-prop { color: var(--t-prop); }
+.t-self { color: var(--t-self); font-style: italic; } .t-op { color: var(--t-op); }
+.t-flow { color: var(--t-flow); font-weight: 600; } .t-range { color: var(--t-range); } .t-safe { color: var(--t-safe); }
+.t-ref { color: var(--t-ref); font-weight: 600; } .t-step { color: var(--t-step); font-style: italic; font-weight: 600; }
+
+/* ── output panel ── */
+.panel { border-left: 1px solid var(--line); background: var(--bg-soft); display: grid; grid-template-rows: auto auto 1fr; min-height: 0; min-width: 0; }
+.tabs { display: flex; gap: 4px; padding: 10px 12px 0; border-bottom: 1px solid var(--line); }
+.tab { border: 0; background: none; padding: 8px 12px 10px; cursor: pointer; color: var(--fg-faint); font-size: 13px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--fg-soft); }
+.tab.on { color: var(--fg); border-bottom-color: var(--accent); }
+.tab .count { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--bad-soft); color: var(--bad); font-size: 11px; }
+.status { display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 12.5px; color: var(--fg-soft); border-bottom: 1px solid var(--line); min-height: 41px; }
+.status .ripple { width: 10px; height: 10px; border-radius: 50%; background: var(--fg-faint); flex-shrink: 0; }
+.status.running .ripple { background: var(--accent); animation: ripple 1.4s ease-out infinite; }
+.status.good .ripple { background: var(--good); }
+.status.bad .ripple { background: var(--bad); }
+@keyframes ripple { 0% { box-shadow: 0 0 0 0 var(--accent-soft), 0 0 0 0 var(--accent-soft); } 100% { box-shadow: 0 0 0 10px transparent, 0 0 0 18px transparent; } }
+.pane { overflow: auto; min-height: 0; }
+.pane[hidden] { display: none; }
+.output { font: 13.5px/21px var(--mono); padding: 14px 18px 40px; white-space: pre-wrap; word-break: break-word; }
+.output .line { min-height: 21px; }
+.output .pass { color: var(--good); } .output .fail { color: var(--bad); } .output .dim { color: var(--fg-faint); }
+.output .head { color: var(--fg); font-weight: 600; }
+.empty { padding: 34px 26px; color: var(--fg-faint); font: 13.5px/1.7 var(--sans); white-space: normal; }
+.empty code { font: 12.5px var(--mono); color: var(--fg-soft); }
+.empty h4 { font: italic 600 22px/1.2 var(--serif); color: var(--fg-soft); margin: 0 0 10px; }
+.empty kbd, .hint kbd { font: 11px var(--mono); padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 5px; color: var(--fg-soft); }
+.err { margin: 12px 0 4px; border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent); background: var(--bad-soft); border-radius: 10px; padding: 12px 14px; font-family: var(--sans); white-space: normal; }
+.err-title { color: var(--bad); font-weight: 600; font-size: 14px; }
+.err-where { margin-top: 6px; border: 0; background: none; padding: 0; color: var(--fg-soft); font-size: 12.5px; cursor: pointer; text-decoration: underline dotted; }
+.err-src { font: 13px/20px var(--mono); margin: 8px 0 0; padding: 8px 10px; background: var(--bg); border-radius: 7px; overflow-x: auto; white-space: pre; color: var(--fg-soft); }
+.err-src .caret { color: var(--bad); font-weight: 700; }
+.err-hint { margin-top: 8px; color: var(--fg-soft); font-size: 13px; }
+.err-hint b { color: var(--accent); font-weight: 600; }
+.docs { padding: 16px 18px 40px; }
+.doc { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer; transition: border-color .15s; }
+.doc:hover { border-color: var(--accent); }
+.doc .kind { font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--fg-faint); }
+.doc .sig { font: 13px/20px var(--mono); margin-top: 4px; white-space: pre-wrap; }
+.doc p { margin: 8px 0 0; color: var(--fg-soft); font-size: 13.5px; white-space: pre-line; }
+.doc ul { margin: 10px 0 0; padding: 0; list-style: none; border-top: 1px dashed var(--line); }
+.doc li { padding: 8px 0 0; font-size: 13px; color: var(--fg-soft); }
+.doc li code { font: 12.5px var(--mono); display: block; color: var(--fg); }
+.input-pane { padding: 16px 18px; display: grid; gap: 10px; align-content: start; }
+.input-pane p { margin: 0; color: var(--fg-soft); font-size: 13px; }
+.input-pane textarea { width: 100%; min-height: 160px; resize: vertical; border: 1px solid var(--line-strong); background: var(--bg); color: var(--fg); border-radius: 9px; padding: 10px 12px; font: 13px/20px var(--mono); outline: none; }
+.input-pane textarea:focus { border-color: var(--accent); }
+
+/* ── bottom bar ── */
+.foot { display: flex; align-items: center; gap: 16px; padding: 0 14px; border-top: 1px solid var(--line); background: var(--bg-soft); font-size: 12px; color: var(--fg-faint); white-space: nowrap; overflow: hidden; }
+.foot .problem { color: var(--bad); cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
+.foot .ok { color: var(--good); }
+.foot .right { margin-left: auto; }
+
+.toast { position: fixed; bottom: 44px; left: 50%; transform: translate(-50%, 20px); opacity: 0; background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 9px; font-size: 13px; pointer-events: none; transition: opacity .2s, transform .2s; box-shadow: var(--shadow); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.menu-btn { display: none; }
+@media (max-width: 1000px) {
+  .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr); }
+  .side { position: fixed; top: 56px; bottom: 28px; left: 0; width: 240px; z-index: 10; transform: translateX(-100%); transition: transform .2s; box-shadow: var(--shadow); }
+  .side.open { transform: none; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); }
+  .menu-btn { display: inline-flex; }
+  .brand .sub, .btn .label-long, .btn .key { display: none; }
+  .top { gap: 8px; padding: 0 10px; }
+  .crumb { display: none; }
+}
+@media (max-width: 520px) {
+  .brand .word { font-size: 22px; }
+  .btn { padding: 0 10px; }
+  .btn .label { display: none; }
+  .btn.primary .label { display: inline; }
+  .foot .hint { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <button class="btn quiet menu-btn" id="menuBtn" aria-label="Show files">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
+    <div class="brand">
+      <svg viewBox="0 0 40 40" fill="none" aria-hidden="true">
+        <path d="M17.2 8.6c0-2.3 1.8-4.1 4.1-4.1 2.3 0 4.1 1.8 4.1 4.1 0 1-.4 2-1 2.7l-6.3 7.4c-1.2 1.4-.2 3.5 1.6 3.5 5.3 0 10.2-1.4 14.3-4.3.5-.3 1.1.1 1 .6-1.1 7.2-7.4 12.5-14.8 12.5h-5.6C10.5 31 7 27.5 7 23.3c0-2 1.6-3.6 3.6-3.6h2.6l5.6-7.3c.5-.6.6-1.4.4-2.1"
+              fill="currentColor"/>
+        <path d="M17.4 7.6 13.3 9.4l4.3.4z" fill="var(--rose)"/>
+        <path d="M5 35.5c2.2-1.3 4.4-1.3 6.6 0s4.4 1.3 6.6 0 4.4-1.3 6.6 0 4.4 1.3 6.6 0" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="word">Lake</div>
+      </div>
+      <div class="sub">for Swan</div>
+    </div>
+    <div class="crumb" id="crumb"></div>
+    <div class="spacer"></div>
+    <button class="btn quiet" id="themeBtn" title="Switch between Black Swan and Swan Lake themes">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor"/></svg>
+      <span class="label" id="themeName">Black Swan</span>
+    </button>
+    <button class="btn" id="saveBtn" title="Save (Ctrl+S)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2.5h8l2.5 2.5v8.5H3z M5.5 2.5v3.5h5v-3.5 M5 13.5v-4h6v4"/></svg>
+      <span class="label">Save</span>
+    </button>
+    <button class="btn" id="testBtn" title="Run the tests in this file (Ctrl+Shift+Enter)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 8.5l3 3 7-7"/></svg>
+      <span class="label">Test</span>
+    </button>
+    <button class="btn" id="stopBtn" hidden title="Stop the running program">
+      <svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+      <span class="label">Stop</span>
+    </button>
+    <button class="btn primary" id="runBtn" title="Run (Ctrl+Enter)">
+      <svg viewBox="0 0 16 16"><path d="M4.5 2.8v10.4L13 8z" fill="currentColor"/></svg>
+      <span class="label">Run</span> <span class="key">Ctrl ↵</span>
+    </button>
+  </header>
+
+  <div class="main">
+    <nav class="side" id="side">
+      <h3>Files <button id="newBtn" title="New file" aria-label="New file">+</button></h3>
+      <div id="files"></div>
+    </nav>
+
+    <section class="editor" aria-label="Code editor">
+      <div class="gutter"><div class="gutter-inner" id="gutter"></div></div>
+      <div class="code" id="codeBox">
+        <pre id="paint" aria-hidden="true"></pre>
+        <textarea id="text" readonly spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Swan code"></textarea>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-tab="out" role="tab">Reflection</button>
+        <button class="tab" data-tab="docs" role="tab">Docs</button>
+        <button class="tab" data-tab="input" role="tab">Input</button>
+      </div>
+      <div class="status" id="status"><span class="ripple"></span><span id="statusText">Ready when you are.</span></div>
+      <div class="pane" id="pane-out"><div class="output" id="output"></div></div>
+      <div class="pane" id="pane-docs" hidden><div class="docs" id="docs"></div></div>
+      <div class="pane" id="pane-input" hidden>
+        <div class="input-pane">
+          <p>If your program uses <code>ask()</code>, type the answers here, one per line. Lake gives them to your program in order.</p>
+          <textarea id="answers" spellcheck="false" placeholder="Odette&#10;24"></textarea>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    <span id="pos">Ln 1, Col 1</span>
+    <span id="problem"></span>
+    <span class="right hint"><kbd>Ctrl ↵</kbd> run &nbsp; <kbd>Ctrl S</kbd> save &nbsp; <kbd>Ctrl /</kbd> comment</span>
+    <span id="version">Swan</span>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const text = $("text"), paint = $("paint"), gutter = $("gutter");
+const LH = 22, PAD_TOP = 18, PAD_LEFT = 22;
+
+const store = {
+  get(k) { try { return localStorage.getItem("lake:" + k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem("lake:" + k, v); } catch {} },
+};
+
+const WELCOME = `-- Welcome to Lake, the editor for Swan.
+-- Press Run (or Ctrl+Enter) to see what this does.
+
+let name = "Odette"
+say "Hello, {name}!"
+
+fn square(n) => n * n
+
+let evens = 1..10
+    |> keep(n => n % 2 == 0)
+    |> map(square)
+
+say "Even squares: {evens}"
+
+test "squares work"
+    expect square(4) == 16
+`;
+
+const state = {
+  files: [], buffers: {}, current: null,
+  run: null, polled: 0, error: null, check: null, tab: "out",
+};
+
+/* ───────────── syntax colouring ───────────── */
+
+const CONTROL = new Set("if elif else then while for in match return stop skip repeat by try otherwise fail expect test".split(" "));
+const DECL = new Set("let var fn shape ability choice hidden".split(" "));
+const SPECIAL = new Set("glide flock spawn await".split(" "));
+const WORDOP = new Set("and or not is ref".split(" "));
+const CONSTS = new Set("true false yes no nothing".split(" "));
+const STEPS = new Set("keep drop pick sort first last unique reverse group".split(" "));
+const BASIC = new Set("number text bool list map any function range task".split(" "));
+const OPS = /^(\|>|=>|->|\.\.<|\.\.\.|\.\.|\?\?|\?\.|==|!=|<=|>=|\+=|-=|\*=|\/=|\*\*|\/\/|[-+*\/%=<>?])/;
+
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const span = (cls, s) => `<span class="${cls}">${esc(s)}</span>`;
+
+function colourString(line, i) {
+  const q = line[i];
+  let j = i + 1, out = `<span class="t-str">${esc(q)}`, buf = "";
+  while (j < line.length) {
+    const c = line[j];
+    if (c === "\\" && j + 1 < line.length) { out += esc(buf) + span("t-escape", line.slice(j, j + 2)); buf = ""; j += 2; continue; }
+    if (c === q) return [out + esc(buf + q) + "</span>", j + 1];
+    if (c === "{") {
+      let k = j + 1, depth = 1;
+      while (k < line.length && depth) { if (line[k] === "{") depth++; else if (line[k] === "}") depth--; k++; }
+      out += esc(buf); buf = "";
+      const inner = depth ? line.slice(j + 1) : line.slice(j + 1, k - 1);
+      out += `<span class="t-interp">{</span><span class="t-inner">${colourCode(inner, {})}</span>` + (depth ? "" : `<span class="t-interp">}</span>`);
+      j = k; continue;
+    }
+    buf += c; j++;
+  }
+  return [out + esc(buf) + "</span>", j];
+}
+
+function colourCode(line, ctx) {
+  let out = "", i = 0, prevWord = "", prevMark = "", firstWord = true;
+  const shapeLine = /^\s*shape\b/.test(line);
+  while (i < line.length) {
+    const c = line[i], rest = line.slice(i);
+    if (rest.startsWith("--")) { out += span(rest.startsWith("---") ? "t-doc" : "t-comment", rest); break; }
+    if (c === '"' || c === "'") { const [html, n] = colourString(line, i); out += html; i = n; prevMark = "s"; prevWord = ""; firstWord = false; continue; }
+    let m;
+    if ((m = /^\d[\d_]*(\.\d[\d_]*)?/.exec(rest))) { out += span("t-num", m[0]); i += m[0].length; prevMark = "0"; prevWord = ""; firstWord = false; continue; }
+    if ((m = /^[A-Za-z_]\w*/.exec(rest))) {
+      const w = m[0], isCall = /^\s*\(/.test(line.slice(i + w.length));
+      let cls = "t-name";
+      if (prevMark === ".") cls = isCall ? "t-call" : "t-prop";
+      else if (firstWord && ctx.step && STEPS.has(w)) cls = "t-step";
+      else if (w === "descending" && ctx.step) cls = "t-step";
+      else if (prevWord === "fn") cls = "t-fndef";
+      else if (["shape", "ability", "choice"].includes(prevWord)) cls = "t-typedef";
+      else if (shapeLine && (w === "from" || w === "can")) cls = "t-decl";
+      else if (SPECIAL.has(w) && !(isCall && w === "glide")) cls = "t-special";
+      else if (DECL.has(w)) cls = "t-decl";
+      else if (CONTROL.has(w)) cls = "t-control";
+      else if (WORDOP.has(w)) cls = "t-wordop";
+      else if (CONSTS.has(w)) cls = "t-const";
+      else if (w === "say") cls = "t-builtin";
+      else if (w === "me" || w === "parent" || w === "it") cls = "t-self";
+      else if (/^[A-Z]/.test(w)) cls = "t-type";
+      else if (BASIC.has(w) && (prevMark === ":" || prevMark === ">" || prevWord === "is" || prevWord === "or" && ctx.typed)) cls = "t-type";
+      else if (isCall) cls = "t-call";
+      out += cls === "t-name" ? esc(w) : span(cls, w);
+      i += w.length; prevWord = w; prevMark = "w"; firstWord = false;
+      continue;
+    }
+    if ((m = OPS.exec(rest))) {
+      const op = m[0];
+      let cls = "t-op";
+      if (op === "|>" || op === "=>" || op === "->") cls = "t-flow";
+      else if (op.startsWith("..")) cls = "t-range";
+      else if (op === "??" || op === "?." || op === "?") cls = "t-safe";
+      out += span(cls, op); i += op.length; prevMark = op[op.length - 1]; prevWord = ""; firstWord = false;
+      if (op === "?.") prevMark = ".";
+      continue;
+    }
+    if (c === "@") { out += span("t-ref", "@"); i++; prevMark = "@"; prevWord = ""; firstWord = false; continue; }
+    out += esc(c);
+    if (c.trim()) { prevMark = c; prevWord = ""; firstWord = false; }
+    i++;
+  }
+  return out;
+}
+
+const indentOf = line => line.match(/^ */)[0].length;
+
+function colourAll(src) {
+  const lines = src.split("\n");
+  let glideIndent = -1;
+  return lines.map(line => {
+    const blank = !line.trim();
+    const ind = indentOf(line);
+    if (!blank && glideIndent >= 0 && ind <= glideIndent) glideIndent = -1;
+    const ctx = { step: glideIndent >= 0 && !blank, typed: /:\s*\w+\s+or\b/.test(line) };
+    const html = colourCode(line, ctx);
+    if (/(^|[=\s])glide\s+[^(\s]/.test(line.replace(/--.*$/, ""))) glideIndent = ind;
+    return html;
+  });
+}
+
+/* ───────────── editor drawing ───────────── */
+
+let charWidth = 8.4;
+function measure() {
+  const probe = document.createElement("span");
+  probe.style.cssText = "position:absolute;visibility:hidden;font:14px var(--mono);white-space:pre";
+  probe.textContent = "x".repeat(100);
+  document.body.appendChild(probe);
+  charWidth = probe.getBoundingClientRect().width / 100 || 8.4;
+  probe.remove();
+}
+
+function lineCol(pos) {
+  const before = text.value.slice(0, pos);
+  const line = before.split("\n").length;
+  return [line, pos - before.lastIndexOf("\n")];
+}
+
+function draw() {
+  const src = text.value;
+  const coloured = colourAll(src);
+  const [curLine] = lineCol(text.selectionStart);
+  let marks = `<div class="mark current" style="top:${PAD_TOP + (curLine - 1) * LH}px"></div>`;
+  const problem = state.error || state.check;
+  if (problem && problem.line) {
+    const soft = !state.error;
+    marks += `<div class="mark ${soft ? "soft" : "error"}" style="top:${PAD_TOP + (problem.line - 1) * LH}px"></div>`;
+    const lineText = src.split("\n")[problem.line - 1] || "";
+    const col = Math.max(1, problem.col || indentOf(lineText) + 1);
+    const word = (lineText.slice(col - 1).match(/^(\w+|\S)/) || ["x"])[0];
+    marks += `<div class="squiggle ${soft ? "soft" : ""}" style="top:${PAD_TOP + (problem.line - 1) * LH}px;left:${PAD_LEFT + (col - 1) * charWidth}px;width:${Math.max(1, word.length) * charWidth}px"></div>`;
+  }
+  paint.innerHTML = marks + coloured.join("\n") + "\n ";
+  const n = coloured.length;
+  const errLine = problem && problem.line;
+  let g = "";
+  for (let i = 1; i <= n; i++) g += `<div class="${i === curLine ? "on" : ""}${i === errLine ? " bad" : ""}">${i}</div>`;
+  gutter.innerHTML = g;
+  syncScroll();
+  $("pos").textContent = `Ln ${curLine}, Col ${lineCol(text.selectionStart)[1]}`;
+}
+
+function syncScroll() {
+  paint.style.transform = `translate(${-text.scrollLeft}px, ${-text.scrollTop}px)`;
+  gutter.style.transform = `translateY(${-text.scrollTop}px)`;
+}
+
+let drawQueued = false;
+function redraw() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => { drawQueued = false; draw(); });
+}
+
+/* ───────────── typing helpers ───────────── */
+
+function insert(str) {
+  text.focus();
+  if (!document.execCommand("insertText", false, str)) {
+    text.setRangeText(str, text.selectionStart, text.selectionEnd, "end");
+  }
+  changed();
+}
+
+function opensBlock(line) {
+  const code = line.replace(/--.*$/, "").trimEnd();
+  if (!code.trim()) return false;
+  if (/^\s*(if|elif|else)\b/.test(code) && /\bthen\b/.test(code)) return false;
+  if (/^\s*(if|elif|else|while|for|repeat|try|otherwise|test|shape|ability|choice|match|flock|glide)\b/.test(code)) return true;
+  if (/^\s*fn\b/.test(code) && !/=>/.test(code)) return true;
+  if (/=>\s*$/.test(code)) return true;
+  if (/=\s*(match|glide)\b/.test(code)) return true;
+  return false;
+}
+
+function selectedLines() {
+  const v = text.value;
+  const start = v.lastIndexOf("\n", text.selectionStart - 1) + 1;
+  let end = v.indexOf("\n", text.selectionEnd - (text.selectionEnd > text.selectionStart && v[text.selectionEnd - 1] === "\n" ? 1 : 0));
+  if (end === -1) end = v.length;
+  return [start, end];
+}
+
+function replaceLines(fn) {
+  const [start, end] = selectedLines();
+  const old = text.value.slice(start, end);
+  const lines = old.split("\n").map(fn);
+  text.setSelectionRange(start, end);
+  insert(lines.join("\n"));
+  text.setSelectionRange(start, start + lines.join("\n").length);
+}
+
+const PAIRS = { "(": ")", "[": "]", "{": "}", '"': '"', "'": "'" };
+
+text.addEventListener("keydown", e => {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key === "Enter") { e.preventDefault(); e.shiftKey ? start("test") : start("run"); return; }
+  if (ctrl && (e.key === "s" || e.key === "S")) { e.preventDefault(); save(); return; }
+  if (ctrl && e.key === "/") {
+    e.preventDefault();
+    const lines = text.value.slice(...selectedLines()).split("\n");
+    const allCommented = lines.filter(l => l.trim()).every(l => /^\s*--/.test(l));
+    replaceLines(l => !l.trim() ? l : allCommented ? l.replace(/^(\s*)-- ?/, "$1") : l.replace(/^(\s*)/, "$1-- "));
+    return;
+  }
+  const s = text.selectionStart, en = text.selectionEnd, v = text.value;
+  if (e.key === "Tab") {
+    e.preventDefault();
+    if (s !== en && v.slice(s, en).includes("\n")) {
+      replaceLines(l => e.shiftKey ? l.replace(/^ {1,4}/, "") : (l.trim() ? "    " + l : l));
+    } else if (e.shiftKey) {
+      replaceLines(l => l.replace(/^ {1,4}/, ""));
+    } else {
+      const col = s - (v.lastIndexOf("\n", s - 1) + 1);
+      insert(" ".repeat(4 - (col % 4)));
+    }
+    return;
+  }
+  if (e.key === "Enter" && !ctrl && !e.altKey) {
+    e.preventDefault();
+    const lineStart = v.lastIndexOf("\n", s - 1) + 1;
+    const line = v.slice(lineStart, s);
+    let ind = indentOf(line);
+    if (opensBlock(line)) ind += 4;
+    insert("\n" + " ".repeat(ind));
+    return;
+  }
+  if (e.key === "Backspace" && s === en && s > 0) {
+    const lineStart = v.lastIndexOf("\n", s - 1) + 1;
+    const before = v.slice(lineStart, s);
+    if (before.length && !before.trim()) {
+      e.preventDefault();
+      const back = before.length % 4 || 4;
+      text.setSelectionRange(s - back, s);
+      insert("");
+      if (text.selectionStart !== s - back) { text.setRangeText("", s - back, s, "end"); changed(); }
+      return;
+    }
+    if (PAIRS[v[s - 1]] && v[s] === PAIRS[v[s - 1]]) {
+      e.preventDefault();
+      text.setSelectionRange(s - 1, s + 1);
+      document.execCommand("delete") || text.setRangeText("", s - 1, s + 1, "end");
+      changed();
+      return;
+    }
+  }
+  if (!ctrl && !e.altKey && e.key.length === 1) {
+    const next = v[s] || "";
+    if ((e.key === ")" || e.key === "]" || e.key === "}" || e.key === '"' || e.key === "'") && next === e.key && s === en) {
+      e.preventDefault(); text.setSelectionRange(s + 1, s + 1); redraw(); return;
+    }
+    if (PAIRS[e.key] && (!next || /[\s)\]},]/.test(next))) {
+      const prev = v[s - 1] || "";
+      if ((e.key === '"' || e.key === "'") && /\w/.test(prev)) return;
+      e.preventDefault();
+      const inside = v.slice(s, en);
+      insert(e.key + inside + PAIRS[e.key]);
+      text.setSelectionRange(s + 1, s + 1 + inside.length);
+      return;
+    }
+  }
+});
+
+text.addEventListener("input", changed);
+text.addEventListener("scroll", syncScroll);
+["click", "keyup", "select"].forEach(ev => text.addEventListener(ev, redraw));
+
+function changed() {
+  const buf = state.buffers[state.current];
+  if (buf) buf.content = text.value;
+  if (state.error) state.error = null;
+  redraw();
+  renderFiles();
+  scheduleCheck();
+  scheduleDocs();
+  store.set("draft:" + state.current, text.value);
+}
+
+/* ───────────── server ───────────── */
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return res.json();
+}
+
+let checkTimer = null;
+function scheduleCheck() {
+  clearTimeout(checkTimer);
+  checkTimer = setTimeout(async () => {
+    try {
+      const r = await api("/api/check", { code: text.value });
+      state.check = r.error;
+      showProblem();
+      redraw();
+    } catch {}
+  }, 450);
+}
+
+function showProblem() {
+  const p = state.error || state.check;
+  const el = $("problem");
+  if (p) { el.className = "problem"; el.textContent = `● line ${p.line}: ${p.message}`; el.onclick = () => goTo(p.line, p.col); }
+  else { el.className = "ok"; el.textContent = "✓ no problems"; el.onclick = null; }
+}
+
+/* ───────────── running ───────────── */
+
+function setStatus(kind, msg) {
+  $("status").className = "status " + kind;
+  $("statusText").textContent = msg;
+}
+
+async function start(mode) {
+  if (state.run) await stop();
+  switchTab("out");
+  state.error = null;
+  $("output").innerHTML = "";
+  setStatus("running", mode === "test" ? "Running the tests…" : "Gliding…");
+  $("runBtn").hidden = true; $("stopBtn").hidden = false;
+  try {
+    const r = await api("/api/run", { code: text.value, mode, input: $("answers").value, filename: state.current || "untitled.swan" });
+    state.run = r.id; state.polled = 0;
+    poll(r.id);
+  } catch {
+    finish();
+    setStatus("bad", "Lake lost touch with Swan. Is the swan lake window still open?");
+  }
+}
+
+async function poll(id) {
+  if (state.run !== id) return;
+  let r;
+  try { r = await api(`/api/poll?id=${id}&from=${state.polled}`); } catch { return setTimeout(() => poll(id), 300); }
+  if (state.run !== id) return;
+  appendOutput(r.output);
+  state.polled += r.output.length;
+  if (!r.done) return setTimeout(() => poll(id), 70);
+  finish();
+  if (r.error) {
+    if (r.error.message === "Stopped.") { setStatus("bad", `Stopped after ${r.seconds}s.`); return; }
+    state.error = r.error;
+    showError(r.error);
+    setStatus("bad", r.error.line ? `Stopped at line ${r.error.line}.` : "Stopped.");
+    showProblem(); redraw();
+  } else {
+    const lines = state.polled;
+    const took = r.seconds < 0.05 ? "in a blink" : `in ${r.seconds}s`;
+    setStatus("good", `Finished ${took}` + (lines ? "." : " — nothing was said. Use say to show something."));
+  }
+}
+
+function finish() {
+  state.run = null;
+  $("runBtn").hidden = false; $("stopBtn").hidden = true;
+}
+
+async function stop() {
+  const id = state.run;
+  if (!id) return;
+  await api("/api/stop", { id }).catch(() => {});
+}
+
+function appendOutput(lines) {
+  const out = $("output");
+  const frag = document.createDocumentFragment();
+  for (const l of lines) {
+    const d = document.createElement("div");
+    d.className = "line" + (/^\s*✓/.test(l) ? " pass" : /^\s*✗/.test(l) ? " fail" : /^Running \d+ test/.test(l) ? " head" : /^\s{6}line \d+$/.test(l) ? " dim" : "");
+    d.textContent = l;
+    frag.appendChild(d);
+  }
+  out.appendChild(frag);
+  const pane = $("pane-out");
+  pane.scrollTop = pane.scrollHeight;
+}
+
+function showError(err) {
+  const box = document.createElement("div");
+  box.className = "err";
+  let html = `<div class="err-title">✗ ${esc(err.message)}</div>`;
+  if (err.line) {
+    html += `<button class="err-where">line ${err.line}${err.col ? `, column ${err.col}` : ""} — show me</button>`;
+    if (err.source) {
+      const g = `${err.line} │ `;
+      html += `<div class="err-src">${esc(g + err.source)}${err.col ? "\n" + " ".repeat(g.length + err.col - 1) + '<span class="caret">^</span>' : ""}</div>`;
+    }
+  }
+  if (err.hint) html += `<div class="err-hint"><b>hint</b> ${esc(err.hint)}</div>`;
+  box.innerHTML = html;
+  const where = box.querySelector(".err-where");
+  if (where) where.onclick = () => goTo(err.line, err.col);
+  $("output").appendChild(box);
+  $("pane-out").scrollTop = $("pane-out").scrollHeight;
+}
+
+function goTo(line, col) {
+  const lines = text.value.split("\n");
+  let pos = 0;
+  for (let i = 0; i < line - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+  pos += Math.max(0, (col || 1) - 1);
+  text.focus();
+  text.setSelectionRange(pos, pos);
+  const top = PAD_TOP + (line - 1) * LH;
+  if (top < text.scrollTop + 40 || top > text.scrollTop + text.clientHeight - 80) text.scrollTop = top - text.clientHeight / 3;
+  redraw();
+}
+
+/* ───────────── docs ───────────── */
+
+let docsTimer = null;
+function scheduleDocs() {
+  if (state.tab !== "docs") return;
+  clearTimeout(docsTimer);
+  docsTimer = setTimeout(renderDocs, 500);
+}
+
+async function renderDocs() {
+  const box = $("docs");
+  let r;
+  try { r = await api("/api/docs", { code: text.value }); } catch { return; }
+  if (r.error) { box.innerHTML = `<div class="empty"><h4>Fix the problem first</h4>Line ${r.error.line}: ${esc(r.error.message)}</div>`; return; }
+  if (!r.entries.length) {
+    box.innerHTML = `<div class="empty"><h4>Docs write themselves</h4>Every function, shape, ability and choice in this file appears here.<br><br>Add notes by writing lines that start with <code>---</code> just above them:<pre style="font:13px/20px var(--mono);margin-top:10px">${colourCode("--- Works out the area of a circle.", {})}\n${colourCode("fn area(radius: number) -> number", {})}\n${colourCode("    pi * radius ** 2", {})}</pre></div>`;
+    return;
+  }
+  box.innerHTML = "";
+  for (const e of r.entries) {
+    const card = document.createElement("div");
+    card.className = "doc";
+    card.innerHTML = `<div class="kind">${e.kind === "fn" ? "function" : e.kind}</div><div class="sig">${colourCode(e.signature, {})}</div>` +
+      (e.doc ? `<p>${esc(e.doc)}</p>` : "") +
+      (e.members.length ? `<ul>${e.members.map(m => `<li><code>${colourCode(m.signature, {})}</code>${m.doc ? esc(m.doc) : ""}</li>`).join("")}</ul>` : "");
+    card.onclick = () => goTo(e.line, 1);
+    box.appendChild(card);
+  }
+}
+
+/* ───────────── files ───────────── */
+
+function renderFiles() {
+  const box = $("files");
+  box.innerHTML = "";
+  const names = [...new Set([...state.files, ...Object.keys(state.buffers)])].sort((a, b) => {
+    const da = a.includes("/"), db = b.includes("/");
+    return da === db ? a.localeCompare(b) : da ? 1 : -1;
+  });
+  let folder = "";
+  for (const name of names) {
+    const b = document.createElement("button");
+    const buf = state.buffers[name];
+    const modified = buf && buf.content !== buf.saved;
+    const slash = name.lastIndexOf("/");
+    const here = slash >= 0 ? name.slice(0, slash + 1) : "";
+    if (here !== folder) {
+      folder = here;
+      const h = document.createElement("div");
+      h.className = "group";
+      h.textContent = here;
+      box.appendChild(h);
+    }
+    b.className = "file" + (name === state.current ? " active" : "");
+    b.title = name;
+    b.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 1.5h5.5L12.5 4.5v10H4z"/></svg>` +
+      `<span class="fname">${esc(name.slice(slash + 1))}</span>` + (modified ? `<span class="mod">●</span>` : "");
+    b.onclick = () => { open(name); $("side").classList.remove("open"); };
+    box.appendChild(b);
+  }
+  const buf = state.buffers[state.current];
+  $("crumb").innerHTML = esc(state.current || "") + (buf && buf.content !== buf.saved ? `<span class="dot">●</span>` : "");
+  document.title = `${state.current ? state.current.split("/").pop() + " · " : ""}Lake`;
+}
+
+async function open(name) {
+  if (state.buffers[state.current]) state.buffers[state.current].content = text.value;
+  if (!state.buffers[name]) {
+    text.readOnly = true;
+    try {
+      const r = await api(`/api/file?path=${encodeURIComponent(name)}`);
+      const draft = store.get("draft:" + name);
+      state.buffers[name] = { content: draft !== null && draft !== r.content ? draft : r.content, saved: r.content };
+    } finally {
+      text.readOnly = false;
+    }
+  }
+  state.current = name;
+  store.set("last", name);
+  text.value = state.buffers[name].content;
+  state.error = null; state.check = null;
+  text.scrollTop = 0; text.scrollLeft = 0;
+  text.setSelectionRange(0, 0);
+  renderFiles(); redraw(); scheduleCheck(); scheduleDocs();
+  text.focus();
+}
+
+async function save() {
+  let name = state.current;
+  if (!name || state.buffers[name].untitled) {
+    name = prompt("Save as (for example: my_program.swan)", "my_program.swan");
+    if (!name) return;
+    if (!name.endsWith(".swan")) name += ".swan";
+    const old = state.current;
+    state.buffers[name] = { content: text.value, saved: null };
+    delete state.buffers[old];
+    state.current = name;
+  }
+  const r = await api("/api/save", { path: name, code: text.value });
+  if (r.error) return toast(r.error);
+  state.buffers[name].saved = text.value;
+  if (!state.files.includes(name)) state.files.push(name);
+  store.set("last", name);
+  try { localStorage.removeItem("lake:draft:" + name); } catch {}
+  renderFiles();
+  toast(`Saved ${name}`);
+}
+
+function newFile() {
+  let name = prompt("Name for the new file", "new_idea.swan");
+  if (!name) return;
+  if (!name.endsWith(".swan")) name += ".swan";
+  if (state.buffers[name] || state.files.includes(name)) return open(name);
+  state.buffers[name] = { content: `-- ${name}\n\nsay "Hello from ${name}"\n`, saved: null };
+  open(name);
+}
+
+/* ───────────── panel, theme, misc ───────────── */
+
+function switchTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === tab));
+  ["out", "docs", "input"].forEach(t => $("pane-" + t).hidden = t !== tab);
+  if (tab === "docs") renderDocs();
+}
+
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $("themeName").textContent = theme === "light" ? "Swan Lake" : "Black Swan";
+  store.set("theme", theme);
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+function emptyOutput() {
+  $("output").innerHTML = `<div class="empty"><h4>Your program's reflection</h4>Whatever your program says appears here.<br>
+  Press <kbd>Ctrl ↵</kbd> to run, or <kbd>Ctrl Shift ↵</kbd> to run its tests.<br><br>
+  If something goes wrong, Lake shows you the exact line and how to fix it.</div>`;
+}
+
+$("runBtn").onclick = () => start("run");
+$("testBtn").onclick = () => start("test");
+$("stopBtn").onclick = stop;
+$("saveBtn").onclick = save;
+$("newBtn").onclick = newFile;
+$("menuBtn").onclick = () => $("side").classList.toggle("open");
+$("themeBtn").onclick = () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+window.addEventListener("resize", () => { measure(); redraw(); });
+window.addEventListener("beforeunload", e => {
+  if (Object.values(state.buffers).some(b => b.saved !== null && b.content !== b.saved)) e.preventDefault();
+});
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && document.activeElement !== text) { e.preventDefault(); start(e.shiftKey ? "test" : "run"); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S") && document.activeElement !== text) { e.preventDefault(); save(); }
+});
+
+(async function boot() {
+  const saved = store.get("theme");
+  setTheme(saved || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+  if (document.fonts) document.fonts.ready.then(() => { measure(); redraw(); });
+  measure();
+  emptyOutput();
+  let info = { files: [], version: "" };
+  try { info = await api("/api/files"); } catch {}
+  state.files = info.files;
+  $("version").textContent = `Swan ${info.version}`;
+  const last = store.get("last");
+  const pick = info.files.includes(last) ? last : info.files.find(f => /(^|\/)hello\.swan$/.test(f)) || info.files[0];
+  if (pick) {
+    await open(pick);
+  } else {
+    state.buffers["untitled.swan"] = { content: WELCOME, saved: null, untitled: true };
+    await open("untitled.swan").catch(() => {});
+    state.current = "untitled.swan";
+    text.value = WELCOME;
+    renderFiles(); redraw();
+  }
+  text.readOnly = false;
+  showProblem();
+})();
+</script>
+</body>
+</html>

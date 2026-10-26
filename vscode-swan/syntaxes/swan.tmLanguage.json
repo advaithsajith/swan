@@ -1,0 +1,118 @@
+{
+  "name": "Swan",
+  "scopeName": "source.swan",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#test" },
+    { "include": "#function" },
+    { "include": "#shape" },
+    { "include": "#declaration" },
+    { "include": "#expression" }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        { "match": "---.*$", "name": "comment.block.documentation.swan" },
+        { "match": "--.*$", "name": "comment.line.double-dash.swan" }
+      ]
+    },
+    "test": {
+      "match": "^\\s*(test)\\b",
+      "captures": { "1": { "name": "keyword.other.test.swan" } }
+    },
+    "function": {
+      "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.type.function.swan" },
+        "2": { "name": "entity.name.function.swan" }
+      }
+    },
+    "shape": {
+      "patterns": [
+        {
+          "match": "\\b(shape|ability|choice)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.shape.swan" },
+            "2": { "name": "entity.name.type.swan" }
+          }
+        },
+        {
+          "match": "(?<=\\))\\s*\\b(from|can)\\b|^\\s*shape\\s+\\w+\\s+(from|can)\\b",
+          "name": "storage.modifier.swan"
+        }
+      ]
+    },
+    "declaration": {
+      "match": "\\b(let|var)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.modifier.swan" },
+        "2": { "name": "variable.other.declaration.swan" }
+      }
+    },
+    "expression": {
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#string-double" },
+        { "include": "#string-single" },
+        { "include": "#number" },
+        {
+          "match": "\\b(if|elif|else|then|while|for|in|match|return|stop|skip|repeat|by|try|otherwise|fail|expect)\\b",
+          "name": "keyword.control.swan"
+        },
+        { "match": "\\b(glide|flock|spawn|await)\\b(?!\\s*\\()", "name": "keyword.other.special.swan" },
+        { "match": "\\b(and|or|not|is)\\b", "name": "keyword.operator.word.swan" },
+        { "match": "\\b(let|var|fn|shape|ability|choice|hidden)\\b", "name": "storage.type.swan" },
+        { "match": "\\b(number|text|bool|list|map|any|function|range|task)\\b(?=\\s*[?,)=]|\\s*$|\\s+or\\b)", "name": "support.type.swan" },
+        { "match": "\\b(me|parent|it)\\b", "name": "variable.language.swan" },
+        { "match": "\\b(true|false|yes|no|nothing)\\b", "name": "constant.language.swan" },
+        { "match": "\\bsay\\b", "name": "support.function.say.swan" },
+        { "match": "\\bref\\b|@", "name": "keyword.operator.ref.swan" },
+        { "match": "\\|>", "name": "keyword.operator.pipe.swan" },
+        { "match": "=>|->", "name": "keyword.operator.arrow.swan" },
+        { "match": "\\.\\.<|\\.\\.\\.|\\.\\.", "name": "keyword.operator.range.swan" },
+        { "match": "\\?\\?|\\?\\.|\\?", "name": "keyword.operator.nothing.swan" },
+        { "match": "==|!=|<=|>=|<|>|\\+=|-=|\\*=|/=|\\*\\*|//|[-+*/%=]", "name": "keyword.operator.swan" },
+        {
+          "match": "\\b([A-Z][A-Za-z0-9_]*)\\b",
+          "name": "entity.name.type.swan"
+        },
+        {
+          "match": "\\b([a-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "name": "entity.name.function.call.swan"
+        },
+        {
+          "match": "(?<=\\.)([a-z_][A-Za-z0-9_]*)",
+          "name": "variable.other.property.swan"
+        }
+      ]
+    },
+    "number": {
+      "match": "\\b\\d[\\d_]*(\\.\\d[\\d_]*)?\\b",
+      "name": "constant.numeric.swan"
+    },
+    "string-double": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.swan",
+      "patterns": [{ "include": "#escape" }, { "include": "#interpolation" }]
+    },
+    "string-single": {
+      "begin": "'",
+      "end": "'",
+      "name": "string.quoted.single.swan",
+      "patterns": [{ "include": "#escape" }, { "include": "#interpolation" }]
+    },
+    "escape": {
+      "match": "\\\\.",
+      "name": "constant.character.escape.swan"
+    },
+    "interpolation": {
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.swan" } },
+      "endCaptures": { "0": { "name": "punctuation.section.interpolation.end.swan" } },
+      "contentName": "meta.interpolation.swan",
+      "patterns": [{ "include": "#expression" }]
+    }
+  }
+}

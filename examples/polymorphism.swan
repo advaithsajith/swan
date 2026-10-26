@@ -1,0 +1,74 @@
+-- Polymorphism: different shapes, one way of talking to them.
+
+
+--- Anything that can Glide moves gracefully across the water.
+ability Glide
+    --- How it glides. Every shape that can Glide must write this.
+    fn glide()
+    --- A short performance, built on glide(). Shapes get this for free.
+    fn perform() => "{name}: {glide()}"
+
+--- Anything that can Sing has a voice.
+ability Sing
+    fn sing()
+
+
+--- A bird on the lake.
+shape Bird(name)
+    fn describe() => "{name} is a {type(me)}"
+
+--- The elegant one.
+shape Swan(name, color = "white") from Bird can Glide, Sing
+    fn glide() => "glides without a ripple"
+    fn sing() => "a soft, low call"
+
+--- A swan's baby. It comes from Swan, so it can do everything a swan can.
+shape Cygnet from Swan
+    fn glide() => "paddles in wobbly circles"
+    fn describe() => parent.describe() + ", still fluffy"
+
+--- Not a bird at all, but it can still Glide.
+shape Boat(name) can Glide
+    fn glide() => "drifts along with the current"
+
+
+let lake = [Swan("Odette"), Swan("Odile", color: "black"), Cygnet("Pip"), Boat("The Lily")]
+
+-- One loop, many kinds of things. Each one glides its own way.
+for thing in lake
+    say thing.perform()
+
+say ""
+
+-- Ask what something is, or what it can do, with 'is'
+for thing in lake
+    if thing is Bird
+        say thing.describe()
+    if thing is Sing
+        say "  …and it sings: {thing.sing()}"
+
+say ""
+
+-- Functions can ask for an ability instead of an exact shape
+fn race(a: Glide, b: Glide) -> text
+    "{a.name} races {b.name}"
+
+say race(lake[0], lake[3])
+
+-- Match understands families too: a Cygnet is also a Swan
+for thing in lake
+    match thing
+        Cygnet(name) => say "{name} is little"
+        Swan(name, color) => say "{name} is a {color} swan"
+        _ => say "{thing.name} isn't a swan"
+
+
+test "every glider performs"
+    expect Boat("Raft").perform() == "Raft: drifts along with the current"
+
+test "cygnets are swans and birds"
+    let pip = Cygnet("Pip")
+    expect pip is Swan
+    expect pip is Bird
+    expect pip is Sing
+    expect pip.describe() == "Pip is a Cygnet, still fluffy"

@@ -1,0 +1,83 @@
+-- The four pillars of object-oriented programming, the Swan way.
+
+
+-- 1. ABSTRACTION — show what something does, not how.
+--    An outline shape lists functions without writing them.
+--    It can't be made directly; the shapes that come from it fill in the gaps.
+
+--- Any musician in the Swan Lake orchestra.
+shape Musician(name)
+    --- The sound this instrument makes. Each kind of musician writes its own.
+    fn sound()
+    fn play() => "{name} plays: {sound()}"
+
+
+-- 2. INHERITANCE — a new shape comes from an existing one and gets everything it has.
+
+shape Violinist from Musician
+    fn sound() => "a long, singing line"
+
+shape Oboist from Musician
+    fn sound() => "the swan's theme, soft and sad"
+
+shape Harpist from Musician
+    fn sound() => "rippling water"
+
+
+-- 3. POLYMORPHISM — one call, many ways of answering.
+
+let orchestra = [Violinist("Anna"), Oboist("Lev"), Harpist("Mira")]
+
+for musician in orchestra
+    say musician.play()          -- same call, each one plays differently
+
+say ""
+
+
+-- 4. ENCAPSULATION — like a swan: calm above the water, paddling hidden below.
+--    'hidden' things can only be used by the shape's own functions.
+
+--- A ticket office that never sells more seats than it has.
+shape BoxOffice(show, hidden seats = 3)
+    fn sell(count)
+        if count > seats
+            fail "only {seats} seats left for {show}"
+        seats -= count
+        log("sold {count}")
+
+    fn seats_left() => seats
+
+    hidden fn log(message)
+        say "  [box office] {message}, {seats} left"
+
+let office = BoxOffice("Swan Lake")
+office.sell(2)
+say "Seats left: {office.seats_left()}"
+say office                       -- the hidden seats don't show
+
+try
+    office.seats = 100           -- not allowed from outside
+otherwise problem
+    say "Refused: {problem}"
+
+try
+    office.sell(5)
+otherwise problem
+    say "Refused: {problem}"
+
+
+test "outlines can't be made directly"
+    var refused = false
+    try
+        Musician("Nobody")
+    otherwise
+        refused = true
+    expect refused
+
+test "every musician plays their own sound"
+    expect Harpist("Mira").play() == "Mira plays: rippling water"
+
+test "seats stay safe inside the box office"
+    let o = BoxOffice("Test", seats: 1)
+    o.sell(1)
+    expect o.seats_left() == 0

@@ -1,0 +1,47 @@
+-- Doing several things at once.
+-- A flock flies together: every line inside it runs at the same time,
+-- and the program carries on once they've all landed.
+
+fn fetch_weather(city)
+    wait(1)                          -- pretend this is a slow download
+    return "{city}: 14°C and calm"
+
+fn fetch_tickets(show)
+    wait(1)
+    return "{show}: 12 seats left"
+
+fn count_swans()
+    wait(1)
+    return 24
+
+let started = now()
+
+flock
+    weather = fetch_weather("Oslo")
+    tickets = fetch_tickets("Swan Lake")
+    swans = count_swans()
+
+say weather
+say tickets
+say "{swans} swans on the lake"
+say "Three one-second jobs finished in {round(now() - started, 1)}s, not 3s."
+
+
+-- For more control: spawn starts a task, await collects its answer.
+fn slow_square(n)
+    wait(0.5)
+    return n * n
+
+let tasks = [spawn slow_square(n) for n in 1..5]
+say "Squares: {await tasks}"
+
+
+-- If a task fails, you hear about it — problems are never lost.
+fn fragile()
+    wait(0.2)
+    fail "the ice cracked"
+
+try
+    await spawn fragile()
+otherwise problem
+    say "Caught: {problem}"

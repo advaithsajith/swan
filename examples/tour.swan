@@ -1,0 +1,193 @@
+-- A tour of Swan, one idea at a time.
+
+
+-- ── Values ──────────────────────────────────────────────
+
+let lake = "Swan Lake"         -- let: stays the same forever
+var swans = 24                 -- var: allowed to change
+swans += 8
+
+say "{lake} has {swans} swans."
+say "Half of them: {swans / 2}"          -- 16  (whole answers stay whole)
+say "A third of them: {swans / 3}"       -- 10.6666666667
+say "Tidy maths: {0.1 + 0.2}"            -- 0.3, not 0.30000000000000004
+
+
+-- ── Functions ───────────────────────────────────────────
+
+fn greet(who, greeting = "Hello")
+    say "{greeting}, {who}."
+
+greet("Odette")
+greet("Siegfried", greeting: "Good evening")
+
+fn square(n) => n * n
+say "Seven squared is {square(7)}"
+
+
+-- ── Lists and pipelines ─────────────────────────────────
+
+let numbers = 1..10
+
+let result = numbers
+    |> keep(n => n % 2 == 0)
+    |> map(square)
+    |> sum
+
+say "Sum of the even squares: {result}"
+
+-- the same thing, written with dots
+say numbers.keep(n => n > 7).map(n => n * 10)
+
+-- or as a list builder
+say [n * n for n in 1..5 if n != 3]
+
+let dancers = ["Odette", "Odile", "Siegfried", "Rothbart"]
+say "First: {dancers[0]}, last: {dancers[-1]}, middle: {dancers[1..2]}"
+
+for i, dancer in dancers
+    say "  {i + 1}. {dancer}"
+
+
+-- ── Counting ────────────────────────────────────────────
+
+for n in 5..1
+    say n, "..."
+say "Curtain up!"
+
+repeat 3
+    say "  ~ ripple ~"
+
+for n in 0..20 by 5
+    say "step", n
+
+
+-- ── Choices ─────────────────────────────────────────────
+
+let temperature = 18
+
+if temperature > 25
+    say "Warm lake."
+elif 10 <= temperature <= 25          -- comparisons can chain
+    say "Perfect gliding weather."
+else
+    say "Brr."
+
+let mood = if swans > 30 then "crowded" else "peaceful"
+say "The lake feels {mood}."
+
+
+-- ── Match: pattern matching ─────────────────────────────
+
+fn describe(x)
+    match x
+        0 => "zero"
+        1..9 => "a small number"
+        "swan" or "cygnet" => "a bird"
+        [] => "an empty list"
+        [only] => "a list with just {only}"
+        [first, ...others] => "a list starting with {first}, plus {length(others)} more"
+        n if type(n) == "number" and n < 0 => "below zero"
+        _ => "something else"
+
+for thing in [0, 7, "swan", [], [3], [1, 2, 3], -4, 1000]
+    say text(thing), "is", describe(thing)
+
+
+-- ── Maps ────────────────────────────────────────────────
+
+let ballet = {title: "Swan Lake", composer: "Tchaikovsky", year: 1877}
+say "{ballet.title} was written by {ballet.composer} in {ballet.year}."
+
+for key, value in ballet
+    say "  {key} → {value}"
+
+-- ?. and ?? : safe with missing things, no crashes
+say ballet?.director ?? "no director listed"
+
+
+-- ── Shapes: your own kinds of things ────────────────────
+
+shape Swan(name, wingspan, color = "white")
+    fn describe() => "{name} the {color} swan, wings {wingspan}m wide"
+    fn grow(amount)
+        wingspan += amount
+
+let odette = Swan("Odette", 2.1)
+let odile = Swan("Odile", 2.3, color: "black")
+
+odette.grow(0.2)
+say odette.describe()
+say odile.describe()
+say odile                                 -- shapes print themselves nicely
+
+match odile
+    Swan(name, _, "black") => say "{name} is the black swan."
+    Swan(name) => say "{name} is just a swan."
+
+
+-- ── Refs: pointers without the danger ───────────────────
+
+var score = 10
+let pointer = ref score       -- pointer now points at score
+
+@pointer += 5                 -- change score through the pointer
+say "score is now {score}"   -- 15
+
+fn add_bonus(target, amount)
+    @target += amount         -- functions can change things you hand them
+
+add_bonus(ref score, 100)
+say "after bonus: {score}"    -- 115
+
+var pair = ["Odette", "Odile"]
+let second = ref pair[1]
+@second = "Odile the Enchantress"
+say pair
+
+
+-- ── Swapping ────────────────────────────────────────────
+
+var left = "black"
+var right = "white"
+left, right = right, left
+say "left is {left}, right is {right}"
+
+
+-- ── When things go wrong ────────────────────────────────
+
+fn safe_divide(a, b)
+    if b == 0
+        fail "can't share {a} swans between 0 lakes"
+    return a / b
+
+try
+    say safe_divide(10, 2)
+    say safe_divide(10, 0)
+otherwise problem
+    say "Caught it: {problem}"
+
+let age = try_number("not a number")
+
+fn try_number(raw)
+    try
+        return number(raw)
+    otherwise
+        return nothing
+
+say "Parsed age: {age ?? 'unknown'}"
+
+
+-- ── Tests live right next to your code ──────────────────
+-- (run them with:  swan test tour.swan)
+
+test "square works"
+    expect square(4) == 16
+    expect square(-3) == 9
+
+test "pipelines add up"
+    expect (1..4 |> map(square) |> sum) == 30
+
+test "describe knows birds"
+    expect describe("swan") == "a bird"
+    expect describe([1, 2, 3]) == "a list starting with 1, plus 2 more"

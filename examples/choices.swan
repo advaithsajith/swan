@@ -1,0 +1,50 @@
+-- Choices: a value that is exactly one of a few options.
+-- Swan checks that every match handles every option, so no case is forgotten.
+
+--- The weather over the lake.
+choice Weather
+    Sunny
+    --- How much rain fell, in millimetres.
+    Rain(mm: number)
+    Storm(wind: number, mm: number)
+
+--- Should the swans go out today?
+fn advice(today: Weather) -> text
+    match today
+        Sunny => "Perfect for gliding."
+        Rain(mm) if mm < 5 => "A little drizzle never hurt a swan."
+        Rain(mm) => "{mm}mm of rain — stay by the reeds."
+        Storm(wind, _) => "Wind at {wind} km/h. Everyone stays home."
+
+for day in [Sunny, Rain(2), Rain(30), Storm(90, 40)]
+    say "{text(day)}: {advice(day)}"
+
+
+-- Null safety: 'number?' means "a number, or nothing".
+-- A plain 'number' can never secretly be nothing.
+
+fn find_age(name: text) -> number?
+    let ages = {Odette: 24, Odile: 23}
+    return get(ages, name)
+
+fn describe(name: text) -> text
+    let age = find_age(name) ?? 0
+    if age == 0 then return "{name}: age unknown"
+    "{name} is {age}"
+
+say describe("Odette")
+say describe("Rothbart")
+
+
+-- Types are optional. Leave them out and Swan works them out;
+-- add them where you want Swan to guard the door.
+let wingspan: number = 2.3
+var label: text = "Odette"
+label = "Odette the White Swan"
+say "{label}, wingspan {wingspan}m"
+
+
+test "advice covers every kind of weather"
+    expect advice(Sunny) == "Perfect for gliding."
+    expect advice(Rain(1)) == "A little drizzle never hurt a swan."
+    expect advice(Storm(80, 10)) == "Wind at 80 km/h. Everyone stays home."

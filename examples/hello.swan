@@ -1,0 +1,4 @@
+-- Your first Swan program.
+
+let name = "Odette"
+say "Hello, {name}! Welcome to the lake."

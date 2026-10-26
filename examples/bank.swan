@@ -1,0 +1,48 @@
+-- A tiny bank: shapes, refs and tests working together.
+
+shape Account(owner, balance = 0)
+    fn deposit(amount)
+        if amount <= 0
+            fail "deposits must be more than 0"
+        balance += amount
+
+    fn withdraw(amount)
+        if amount > balance
+            fail "{owner} only has {balance}, can't take out {amount}"
+        balance -= amount
+
+    fn show() => "{owner}: ${balance}"
+
+fn transfer(from, to, amount)
+    from.withdraw(amount)
+    to.deposit(amount)
+
+let odette = Account("Odette", balance: 100)
+let siegfried = Account("Siegfried")
+
+transfer(odette, siegfried, 40)
+say odette
+say siegfried
+
+try
+    transfer(siegfried, odette, 500)
+otherwise problem
+    say "Transfer refused: {problem}"
+
+
+test "transfers move money"
+    let a = Account("A", balance: 50)
+    let b = Account("B")
+    transfer(a, b, 20)
+    expect a.balance == 30
+    expect b.balance == 20
+
+test "you can't overdraw"
+    let a = Account("A", balance: 5)
+    var refused = false
+    try
+        a.withdraw(10)
+    otherwise
+        refused = true
+    expect refused
+    expect a.balance == 5

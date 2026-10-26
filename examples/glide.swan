@@ -1,0 +1,54 @@
+-- glide: data processing that reads like a sentence.
+-- Inside each step you can use the fields directly, or 'it' for the whole item.
+
+let dancers = [
+    {name: "Odette", age: 24, city: "Paris", role: "lead"},
+    {name: "Siegfried", age: 27, city: "Vienna", role: "lead"},
+    {name: "Benno", age: 17, city: "Paris", role: "chorus"},
+    {name: "Odile", age: 23, city: "Moscow", role: "lead"},
+    {name: "Rothbart", age: 45, city: "Vienna", role: "villain"},
+    {name: "Pip", age: 15, city: "Paris", role: "chorus"},
+]
+
+let adults = glide dancers
+    keep age >= 18
+    sort name
+    pick name
+
+say "Adults: {join(adults, ', ')}"
+
+
+let leads = glide dancers
+    keep role == "lead"
+    sort age descending
+    pick "{name} ({age})"
+
+say "Leads, oldest first: {leads}"
+
+
+let by_city = glide dancers
+    group city
+    sort key
+    pick "{key}: {length(items)} dancer{if length(items) == 1 then '' else 's'}"
+
+for line in by_city
+    say line
+
+
+-- glide works with shapes too
+shape Swan(name, wingspan)
+
+let biggest = glide [Swan("Odette", 2.1), Swan("Odile", 2.4), Swan("Pip", 0.8)]
+    sort wingspan descending
+    first 2
+    pick name
+
+say "Biggest wingspans: {biggest}"
+
+
+test "glide keeps, sorts and picks"
+    let result = glide [3, 1, 2, 5, 4]
+        keep it > 1
+        sort
+        pick it * 10
+    expect result == [20, 30, 40, 50]
