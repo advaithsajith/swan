@@ -23,6 +23,7 @@
   <a href="#try-it-in-lake-the-swan-editor">Install it</a> ·
   <a href="GUIDE.md">Learn it</a> ·
   <a href="#the-language">Language tour</a> ·
+  <a href="#libraries">Libraries</a> ·
   <a href="examples">Examples</a>
 </p>
 
@@ -302,6 +303,38 @@ Any tool can be written with dots: `length(name)` is the same as `name.length()`
 
 ---
 
+## Libraries
+
+Libraries are extra tools, written in Swan itself, that you bring in with `use`:
+
+```swan
+use maths                          -- then maths.gcd(12, 18)
+use maths as m                     -- a shorter name: m.primes(30)
+use box, bars from draw            -- or pick just the tools you want
+
+say box("Swan Lake census", title: "1877")
+say bars({swans: 24, ducks: 15, herons: 3})
+```
+```
+┌─ 1877 ───────────┐
+│ Swan Lake census │
+└──────────────────┘
+swans  │████████████████████ 24
+ducks  │█████████████ 15
+herons │███ 3
+```
+
+| Library | Tools |
+|---|---|
+| **maths** | `gcd` `lcm` `is_even` `is_odd` `is_prime` `primes` `factors` `factorial` `fibonacci` `digits` `clamp` `lerp` `percent` `median` `mode` `spread` `deviation` |
+| **draw** | `box` `table` `bars` `progress` `pad` `divider` |
+
+`help(maths)` lists what a library has. If something goes wrong inside a library, the error points
+at the line in *your* code that called it. Libraries live in the [lib](lib) folder; each one has its
+own tests, so `swan test lib/maths.swan` checks it. Inside a library, `hidden fn` keeps a helper to itself.
+
+---
+
 ## Kind errors
 
 ```
@@ -329,6 +362,7 @@ gets you the Swan way to say it. Typos get "Did you mean …?"
 | [flock.swan](examples/flock.swan) | running things at the same time |
 | [bank.swan](examples/bank.swan) | a small program with tests |
 | [fizzbuzz.swan](examples/fizzbuzz.swan) | the classic, Swan-style |
+| [libraries.swan](examples/libraries.swan) | `use`, with the maths and draw libraries |
 
 ---
 
@@ -350,7 +384,7 @@ Restart VS Code and open a `.swan` file.
 python tests/check.py
 ```
 
-This runs 178 good and broken programs through Swan. Each one must give the right answer or a friendly message.
+This runs 198 good and broken programs through Swan. Each one must give the right answer or a friendly message.
 GitHub runs the same checks automatically on Windows, macOS and Linux every time code is pushed.
 
 ## License

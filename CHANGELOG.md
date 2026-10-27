@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Libraries:** bring in extra tools with `use maths`, `use maths as m` or `use gcd, lcm from maths`.
+  Errors inside a library point at the line in your code that called it, and `hidden fn` keeps a library's helpers private.
+- **maths library:** `gcd`, `lcm`, primes and factors, `factorial`, `fibonacci`, `clamp`, `percent`, and
+  statistics (`median`, `mode`, `spread`, `deviation`).
+- **draw library:** text pictures for the terminal: `box`, `table`, `bars`, `progress`, `pad` and `divider`.
+- Libraries work in Lake on your computer and in the browser; there's a new [libraries.swan](examples/libraries.swan) example.
+
 ## 0.3 · preview
 
 The first public release.

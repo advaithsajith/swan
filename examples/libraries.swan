@@ -1,0 +1,26 @@
+-- Using Swan's libraries: maths for numbers, draw for text pictures.
+
+use maths
+use box, table, bars, progress from draw
+
+say box("Swan Lake census", title: "1877")
+
+let counts = {swans: 24, cygnets: 9, ducks: 15, herons: 3}
+say bars(counts, width: 24)
+say ""
+
+let birds = [
+    {name: "Odette", age: 7, wingspan: 2.3},
+    {name: "Odile", age: 6, wingspan: 2.4},
+    {name: "Pip", age: 1, wingspan: 0.9},
+]
+say table(birds)
+
+let ages = birds |> map(s => s.age)
+say "Median age: {maths.median(ages)}, spread: {maths.spread(ages)}"
+say "Primes up to 30: {maths.primes(30)}"
+say "360 is made of {maths.factors(360)}"
+say "Swans fit in rows of {maths.gcd(24, 9)} with cygnets"
+
+say ""
+say "Migration " + progress(24, 40)

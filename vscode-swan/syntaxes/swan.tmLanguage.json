@@ -62,6 +62,7 @@
         { "match": "\\b(glide|flock|spawn|await)\\b(?!\\s*\\()", "name": "keyword.other.special.swan" },
         { "match": "\\b(and|or|not|is)\\b", "name": "keyword.operator.word.swan" },
         { "match": "\\b(let|var|fn|shape|ability|choice|hidden)\\b", "name": "storage.type.swan" },
+        { "match": "^\\s*use\\b(?=\\s+\\w)", "name": "keyword.other.import.swan" },
         { "match": "\\b(number|text|bool|list|map|any|function|range|task)\\b(?=\\s*[?,)=]|\\s*$|\\s+or\\b)", "name": "support.type.swan" },
         { "match": "\\b(me|parent|it)\\b", "name": "variable.language.swan" },
         { "match": "\\b(true|false|yes|no|nothing)\\b", "name": "constant.language.swan" },

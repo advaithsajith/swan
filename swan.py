@@ -13,6 +13,7 @@ import random as _random
 
 VERSION = "0.3"
 MAX_DEPTH = 2500
+LIB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib")
 
 # ───────────────────────────── errors ─────────────────────────────
 
@@ -348,6 +349,11 @@ class Parser:
                 self.end_line()
                 return Node("ExprStmt", tok, expr=e)
             if v == "flock": return self.flock_statement()
+            if v == "hidden" and self.at_kw("fn", 1):
+                self.next()
+                fn = self.fn_declaration()
+                fn.hidden = True
+                return fn
             if v == "hidden":
                 self.fail("'hidden' only works inside a shape.",
                           hint="Use it for a shape's private fields and functions, like: shape Account(owner, hidden balance)")
@@ -364,7 +370,32 @@ class Parser:
                 name_tok = self.expect("STR", msg='A test needs a name in quotes, like: test "adding numbers"')
                 name = "".join(p for p in name_tok.value if isinstance(p, str))
                 return Node("Test", tok, name=name, body=self.block("test"))
+        if tok.kind == "NAME" and tok.value == "use" and self.at("NAME", o=1) and \
+                (self.at("NEWLINE", o=2) or self.at("EOF", o=2) or self.at_op(",", 2) or
+                 self.at("NAME", "from", 2) or self.at("NAME", "as", 2)):
+            return self.use_statement()
         return self.simple_statement_line()
+
+    def use_statement(self):
+        tok = self.next()
+        first = self.next()
+        names, alias = None, None
+        if self.at_op(",") or self.at("NAME", "from"):
+            names = [first.value]
+            while self.accept("OP", ","):
+                names.append(self.expect("NAME", msg="I expected another name to bring in.",
+                                         hint="Write it like: use gcd, lcm from maths").value)
+            self.expect("NAME", "from", msg="I expected 'from' and a library name here.",
+                        hint="Write it like: use gcd, lcm from maths")
+            library = self.expect("NAME", msg="I expected the name of a library after 'from'.",
+                                  hint="Write it like: use gcd, lcm from maths").value
+        else:
+            library = first.value
+            if self.accept("NAME", "as"):
+                alias = self.expect("NAME", msg="I expected a short name after 'as'.",
+                                    hint="Write it like: use maths as m").value
+        self.end_line()
+        return Node("Use", tok, library=library, names=names, alias=alias)
 
     def simple_statement_line(self):
         s = self.simple_statement()
@@ -1108,6 +1139,14 @@ class Ability:
     def __init__(self, name, required, defaults, env, doc=""):
         self.name, self.required, self.defaults, self.env, self.doc = name, required, defaults, env, doc
 
+class Library:
+    """What 'use maths' gives you: everything the maths library made, reached with maths.name"""
+    def __init__(self, name, env, doc="", hidden=()):
+        self.name, self.env, self.doc, self.hidden = name, env, doc, set(hidden)
+
+    def names(self):
+        return sorted(n for n in self.env.vars if n not in self.hidden)
+
 class Instance:
     def __init__(self, shape):
         self.shape, self.fields = shape, {}
@@ -1179,12 +1218,13 @@ def type_name(v):
     if isinstance(v, Ref): return "ref"
     if isinstance(v, Task): return "task"
     if isinstance(v, ParentView): return v.shape.name
+    if isinstance(v, Library): return "library"
     return "function"
 
 def type_phrase(name):
     return {"number": "a number", "text": "text", "bool": "true or false", "list": "a list", "map": "a map",
             "nothing": "nothing", "range": "a range", "ref": "a ref", "function": "a function", "task": "a task",
-            "any": "anything", "shape": "a shape", "ability": "an ability"}.get(name, f"a {name}")
+            "any": "anything", "shape": "a shape", "ability": "an ability", "library": "a library"}.get(name, f"a {name}")
 
 def type_text(t):
     return " or ".join(t.options) + ("?" if t.optional else "")
@@ -1290,6 +1330,8 @@ class Interpreter:
         self.color = USE_COLOR if color is None else color
         self.out = out or (lambda text: (sys.stdout.write(text), sys.stdout.flush()))
         self.builtins = make_builtins(self)
+        self.libraries = {}        # name -> Library, so each one loads only once
+        self.library_roots = {}    # id(top-level env of a library) -> its name
 
     # per-thread state, so tasks running side by side don't trip over each other
     @property
@@ -1347,6 +1389,9 @@ class Interpreter:
     def exec_block(self, stmts, env):
         shapes = []
         for s in stmts:
+            if s.kind == "Use":
+                self.s_Use(s, env)
+        for s in stmts:
             if s.kind == "Fn":
                 env.define(s.name, Function(s.name, s.params, s.body, env, s.returns, s.doc), False, s)
             elif s.kind == "Ability":
@@ -1366,7 +1411,7 @@ class Interpreter:
                 shapes.remove(s)
         last = None
         for s in stmts:
-            if s.kind in ("Fn", "Shape", "Ability", "Choice"):
+            if s.kind in ("Fn", "Shape", "Ability", "Choice", "Use"):
                 last = None
             elif s.kind == "Test":
                 if self.testing:
@@ -1461,6 +1506,67 @@ class Interpreter:
         if self.can_see_inside(obj.shape):
             return obj.fields
         return {k: v for k, v in obj.fields.items() if k not in obj.shape.hidden_fields}
+
+    # ── libraries ──
+    def s_Use(self, s, env):
+        lib = self.load_library(s.library, s)
+        if s.names is None:
+            name = s.alias or s.library
+            found, existing = env.lookup(name)
+            if not (found and existing is lib):
+                env.define(name, lib, False, s)
+            return
+        for name in s.names:
+            value = self.library_member(lib, name, s)
+            found, existing = env.lookup(name)
+            if not (found and existing is value):
+                env.define(name, value, False, s)
+
+    def library_member(self, lib, name, node):
+        if name in lib.env.vars and name not in lib.hidden:
+            return lib.env.vars[name]
+        if name in lib.hidden:
+            raise SwanError(f"'{name}' is hidden inside the {lib.name} library.", node.line, node.col,
+                            f"It's a helper the library uses for itself. It has: {', '.join(lib.names())}")
+        close = difflib.get_close_matches(name, lib.names(), 1, 0.6)
+        raise SwanError(f"The {lib.name} library has nothing called '{name}'.", node.line, node.col,
+                        f"Did you mean '{close[0]}'?" if close else f"It has: {', '.join(lib.names())}")
+
+    def load_library(self, name, node):
+        if name in self.libraries:
+            return self.libraries[name]
+        path = os.path.join(LIB_DIR, name + ".swan")
+        if not os.path.isfile(path):
+            have = available_libraries()
+            close = difflib.get_close_matches(name, have, 1, 0.6)
+            raise SwanError(f"I don't know a library called '{name}'.", node.line, node.col,
+                            f"Did you mean '{close[0]}'?" if close else
+                            f"The libraries are: {', '.join(have)}" if have else "There are no libraries installed.")
+        with open(path, encoding="utf-8") as f:
+            source = f.read()
+        env = Env()
+        try:
+            program = parse(source)
+            hidden = {t.name for t in program if t.kind == "Fn" and getattr(t, "hidden", False)}
+            lib = Library(name, env, library_doc(source), hidden)
+            self.libraries[name] = lib
+            self.library_roots[id(env)] = name
+            testing, self.testing = self.testing, False
+            try:
+                self.exec_block(program, env)
+            finally:
+                self.testing = testing
+        except SwanError as e:
+            self.libraries.pop(name, None)
+            raise SwanError(f"The {name} library has a problem: {e.message}", node.line, node.col,
+                            f"It's on line {e.line} of lib/{name}.swan." + (f" {e.hint}" if e.hint else ""))
+        return lib
+
+    def library_of(self, fn):
+        e = fn.env
+        while e.parent is not None:
+            e = e.parent
+        return self.library_roots.get(id(e))
 
     def s_ExprStmt(self, s, env):
         return self.eval(s.expr, env)
@@ -1817,6 +1923,8 @@ class Interpreter:
                 return BoundMethod(obj.shape.methods[name], obj)
         if isinstance(obj, dict) and name in obj and is_callable(obj[name]):
             return obj[name]
+        if isinstance(obj, Library):
+            return self.library_member(obj, name, node)
         found, fn = env.lookup(name)
         if not found and name in self.builtins:
             found, fn = True, self.builtins[name]
@@ -1888,6 +1996,29 @@ class Interpreter:
                             f"Call it like: {name}({', '.join(plain)})")
 
     def call_function(self, fn, args, kwargs, node, me=None):
+        if self.library_roots:
+            return self.call_across(fn, args, kwargs, node, me)
+        return self.call_plain(fn, args, kwargs, node, me)
+
+    def call_across(self, fn, args, kwargs, node, me):
+        """Library code lives in another file, so its mistakes are shown where your code called it."""
+        lib = self.library_of(fn)
+        caller = getattr(self.local, "library", None)
+        self.local.library = lib
+        try:
+            return self.call_plain(fn, args, kwargs, node, me)
+        except SwanError as e:
+            if lib is None:
+                e.placed = True
+            elif caller is None and not getattr(e, "placed", False) and node is not None and node.line:
+                e.line, e.col, e.placed = node.line, node.col, True
+                if not e.hint:
+                    e.hint = f"This came from {fn.name} in the {lib} library."
+            raise
+        finally:
+            self.local.library = caller
+
+    def call_plain(self, fn, args, kwargs, node, me=None):
         self.depth += 1
         outside = getattr(self.local, "inside", None)
         if me is not None:
@@ -2305,6 +2436,8 @@ class Interpreter:
             close = difflib.get_close_matches(name, [str(k) for k in obj], 1, 0.6)
             raise SwanError(f"This map has no '{name}'.", node.line, node.col,
                             f"Did you mean '{close[0]}'?" if close else f"Use map?.{name} to get nothing instead of an error.")
+        if isinstance(obj, Library):
+            return self.library_member(obj, name, node)
         if isinstance(obj, (ShapeType, Ability)) and name == "name":
             return obj.name
         if name in ("length", "size") and isinstance(obj, (list, str, dict)):
@@ -2380,6 +2513,7 @@ class Interpreter:
         if isinstance(v, Ref): return f"ref → {self.show(v.get(), True, seen)}"
         if isinstance(v, ShapeType): return f"<shape {v.name}>"
         if isinstance(v, Ability): return f"<ability {v.name}>"
+        if isinstance(v, Library): return f"<library {v.name}>"
         if isinstance(v, Task): return f"<task {v.name}, {'done' if v.done.is_set() else 'still running'}>"
         if isinstance(v, ParentView): return f"<parent {v.shape.name}>"
         if isinstance(v, BoundMethod): return f"<fn {v.fn.name}>"
@@ -2500,6 +2634,8 @@ def make_builtins(I):
     @tool("help", "help(fn_or_shape)")
     def help_(x):
         """The notes written above a function, shape or ability with ---"""
+        if isinstance(x, Library):
+            return (x.doc + "\n\n" if x.doc else "") + f"The {x.name} library has: {', '.join(x.names())}"
         doc = getattr(x, "doc", None) or (x.fn.doc if isinstance(x, BoundMethod) else "")
         return doc or f"No notes for {I.show(x)}. Add some with --- just above it."
 
@@ -2828,6 +2964,21 @@ def docs_markdown(entries, title):
     return "\n".join(out)
 
 # ───────────────────────────── running ─────────────────────────────
+
+def available_libraries():
+    try:
+        return sorted(f[:-5] for f in os.listdir(LIB_DIR) if f.endswith(".swan"))
+    except OSError:
+        return []
+
+def library_doc(source):
+    """The --- lines at the very top of a library describe the whole library."""
+    found = []
+    for line in source.split("\n"):
+        if not line.startswith("---"):
+            break
+        found.append(line[3:].strip())
+    return "\n".join(found)
 
 def parse(source, docs=None):
     lines = source.split("\n")

@@ -1,0 +1,104 @@
+--- Text pictures for the terminal: boxes, tables, bar charts and progress bars.
+--- Every tool gives back text, so show it with say:  say draw.box("Hello!")
+
+
+-- ── lining things up ────────────────────────────────────
+
+--- Makes value exactly width characters wide. align is "left", "right" or "center".
+fn pad(value, width, align = "left")
+    let t = text(value)
+    let gap = max(width - length(t), 0)
+    match align
+        "left" => t + " " * gap
+        "right" => " " * gap + t
+        "center" => " " * (gap // 2) + t + " " * (gap - gap // 2)
+        _ => fail "pad's align should be \"left\", \"right\" or \"center\", but got {quote_text(align)}."
+
+hidden fn quote_text(value) => if value is text then "\"{value}\"" else text(value)
+
+--- A straight line, handy between sections.
+fn divider(width = 40, mark = "─") => mark * width
+
+
+-- ── boxes ───────────────────────────────────────────────
+
+--- Draws a box around some text. It can be several lines, and have a title on top.
+fn box(content, padding = 1, title = nothing)
+    let rows = lines(text(content))
+    let inner = max([length(r) for r in rows] + [length(text(title ?? "")) + 2])
+    let side = " " * padding
+    let width = inner + padding * 2
+    let top = if title == nothing then "─" * width else "─ {title} " + "─" * (width - length(text(title)) - 3)
+    var out = ["┌{top}┐"]
+    for r in rows
+        push(out, "│{side}{pad(r, inner)}{side}│")
+    push(out, "└" + "─" * width + "┘")
+    join(out, "\n")
+
+
+-- ── tables ──────────────────────────────────────────────
+
+--- Lines up a list of maps as a table. The first map's keys become the headings.
+--- Numbers are lined up on the right, everything else on the left.
+fn table(rows)
+    if not (rows is list) or length(rows) == 0
+        fail "table needs a list of maps, like: [\{name: 'Odette', age: 21\}]"
+    let headings = keys(rows[0])
+    var widths = {}
+    for h in headings
+        widths[h] = max([length(text(h))] + [length(text(get(r, h, ""))) for r in rows])
+    fn cell(value, h) => pad(value, widths[h], align: if value is number then "right" else "left")
+    fn row_line(parts) => "│ " + join(parts, " │ ") + " │"
+    fn edge(left, middle, right) => left + join([("─" * (widths[h] + 2)) for h in headings], middle) + right
+    var out = [edge("┌", "┬", "┐"), row_line([pad(h, widths[h]) for h in headings]), edge("├", "┼", "┤")]
+    for r in rows
+        push(out, row_line([cell(get(r, h, ""), h) for h in headings]))
+    push(out, edge("└", "┴", "┘"))
+    join(out, "\n")
+
+
+-- ── charts ──────────────────────────────────────────────
+
+--- A sideways bar chart from a map of label: number.  The biggest bar is width long.
+fn bars(data, width = 20)
+    if not (data is map) or length(keys(data)) == 0
+        fail "bars needs a map of label: number, like: \{swans: 12, ducks: 5\}"
+    let biggest = max(values(data))
+    let label_width = max(keys(data) |> map(k => length(text(k))))
+    var out = []
+    for label, amount in data
+        if not (amount is number) or amount < 0
+            fail "bars can only draw numbers of 0 or more, but '{label}' is {amount}."
+        let size = if biggest == 0 then 0 else round(amount / biggest * width)
+        push(out, "{pad(label, label_width)} │" + "█" * size + " {amount}")
+    join(out, "\n")
+
+--- A progress bar like [██████░░░░] 60%
+fn progress(done, total, width = 20)
+    if total <= 0
+        fail "progress needs a total of more than 0."
+    let share = min(max(done / total, 0), 1)
+    let filled = round(share * width)
+    "[" + "█" * filled + "░" * (width - filled) + "] {round(share * 100)}%"
+
+
+test "pad lines things up"
+    expect pad("ab", 4) == "ab  "
+    expect pad(7, 3, align: "right") == "  7"
+    expect pad("x", 4, align: "center") == " x  "
+    expect pad("too long", 3) == "too long"
+
+test "box"
+    expect box("hi") == "┌────┐\n│ hi │\n└────┘"
+    expect box("a\nbcd", padding: 0) == "┌───┐\n│a  │\n│bcd│\n└───┘"
+    expect lines(box("hi", title: "Note"))[0] == "┌─ Note ─┐"
+
+test "table"
+    let t = table([{name: "Odette", age: 9}, {name: "Pip", age: 10}])
+    expect lines(t)[1] == "│ name   │ age │"
+    expect lines(t)[3] == "│ Odette │   9 │"
+
+test "bars and progress"
+    expect bars({a: 4, bb: 2}, width: 4) == "a  │████ 4\nbb │██ 2"
+    expect progress(3, 10, width: 10) == "[███░░░░░░░] 30%"
+    expect progress(12, 10, width: 4) == "[████] 100%"

@@ -1,0 +1,188 @@
+--- Number helpers: whole-number tricks, primes, and simple statistics.
+--- Bring it in with:  use maths   (then maths.gcd(12, 18))
+--- or pick a few:     use gcd, is_prime from maths
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn whole(n, what)
+    if not (n is number) or floor(n) != n
+        fail "{what} needs a whole number, but got {n}."
+
+hidden fn some(values, what)
+    if not (values is list)
+        fail "{what} needs a list of numbers."
+    if length(values) == 0
+        fail "{what} needs at least one number, but the list is empty."
+
+
+-- ── whole numbers ───────────────────────────────────────
+
+--- The greatest common divisor: the biggest number that divides both.
+fn gcd(a, b)
+    whole(a, "gcd")
+    whole(b, "gcd")
+    var x = abs(a)
+    var y = abs(b)
+    while y != 0
+        x, y = y, x % y
+    x
+
+--- The least common multiple: the smallest number both divide into.
+fn lcm(a, b)
+    whole(a, "lcm")
+    whole(b, "lcm")
+    if a == 0 or b == 0 then return 0
+    abs(a * b) // gcd(a, b)
+
+--- true if n divides by 2 with nothing left over.
+fn is_even(n)
+    whole(n, "is_even")
+    n % 2 == 0
+
+--- true if n leaves 1 when divided by 2.
+fn is_odd(n) => not is_even(n)
+
+--- true if n is only divisible by 1 and itself.
+fn is_prime(n)
+    whole(n, "is_prime")
+    if n < 2 then return false
+    if n < 4 then return true
+    if n % 2 == 0 then return false
+    var d = 3
+    while d * d <= n
+        if n % d == 0 then return false
+        d += 2
+    true
+
+--- Every prime from 2 up to (and including) limit.
+fn primes(limit)
+    whole(limit, "primes")
+    if limit < 2 then return []
+    [n for n in 2..limit if is_prime(n)]
+
+--- The prime numbers that multiply together to make n, smallest first.
+fn factors(n)
+    whole(n, "factors")
+    if n < 2
+        fail "factors needs a whole number of 2 or more, but got {n}."
+    var left = n
+    var d = 2
+    var found = []
+    while d * d <= left
+        while left % d == 0
+            push(found, d)
+            left = left // d
+        d += 1
+    if left > 1 then push(found, left)
+    found
+
+--- 1 × 2 × 3 × … × n.  (factorial(0) is 1.)
+fn factorial(n)
+    whole(n, "factorial")
+    if n < 0
+        fail "factorial needs 0 or more, but got {n}."
+    var total = 1
+    var k = 2
+    while k <= n
+        total *= k
+        k += 1
+    total
+
+--- The first count numbers of the Fibonacci sequence: 0, 1, 1, 2, 3, 5, …
+fn fibonacci(count)
+    whole(count, "fibonacci")
+    var found = []
+    var a = 0
+    var b = 1
+    repeat count
+        push(found, a)
+        a, b = b, a + b
+    found
+
+--- The digits of a whole number, as a list.
+fn digits(n)
+    whole(n, "digits")
+    chars(text(abs(n))) |> map(number)
+
+
+-- ── everyday helpers ────────────────────────────────────
+
+--- Keeps n between low and high.
+fn clamp(n, low, high)
+    if low > high
+        fail "clamp's low ({low}) is bigger than its high ({high})."
+    min(max(n, low), high)
+
+--- The point a fraction t of the way from a to b.  lerp(0, 10, 0.25) is 2.5
+fn lerp(a, b, t) => a + (b - a) * t
+
+--- What percent part is of whole, rounded to digits places.
+fn percent(part, whole_amount, digits = 1)
+    if whole_amount == 0
+        fail "percent can't work out a share of 0."
+    round(part / whole_amount * 100, digits)
+
+
+-- ── statistics ──────────────────────────────────────────
+
+--- The middle value once the list is sorted (or the average of the two middle ones).
+fn median(values)
+    some(values, "median")
+    let sorted = sort(values)
+    let mid = length(sorted) // 2
+    if length(sorted) % 2 == 1 then return sorted[mid]
+    (sorted[mid - 1] + sorted[mid]) / 2
+
+--- The value that appears most often. If there's a tie, the one that appeared first wins.
+fn mode(values)
+    some(values, "mode")
+    var best = values[0]
+    var best_count = 0
+    for v in unique(values)
+        let c = count(values, x => x == v)
+        if c > best_count
+            best, best_count = v, c
+    best
+
+--- The difference between the biggest and the smallest value.
+fn spread(values)
+    some(values, "spread")
+    max(values) - min(values)
+
+--- How far values usually are from their average (the population standard deviation).
+fn deviation(values)
+    some(values, "deviation")
+    let mean = average(values)
+    sqrt(average(values |> map(v => (v - mean) ** 2)))
+
+
+test "gcd and lcm"
+    expect gcd(12, 18) == 6
+    expect gcd(-4, 6) == 2
+    expect lcm(4, 6) == 12
+    expect lcm(0, 5) == 0
+
+test "primes"
+    expect is_prime(97)
+    expect not is_prime(1)
+    expect primes(20) == [2, 3, 5, 7, 11, 13, 17, 19]
+    expect factors(360) == [2, 2, 2, 3, 3, 5]
+
+test "sequences"
+    expect factorial(5) == 120
+    expect factorial(0) == 1
+    expect fibonacci(7) == [0, 1, 1, 2, 3, 5, 8]
+    expect digits(1877) == [1, 8, 7, 7]
+
+test "helpers"
+    expect clamp(15, 0, 10) == 10
+    expect lerp(0, 10, 0.25) == 2.5
+    expect percent(1, 3) == 33.3
+
+test "statistics"
+    expect median([3, 1, 2]) == 2
+    expect median([4, 1, 2, 3]) == 2.5
+    expect mode(["swan", "duck", "swan"]) == "swan"
+    expect spread([4, 9, 2]) == 7
+    expect deviation([2, 4, 4, 4, 5, 5, 7, 9]) == 2

@@ -202,9 +202,33 @@ FAILS = [
     ('shape A(hidden v)\nsay A(1).v', "hidden inside A"),
     ('shape A(hidden v)\nvar a = A(1)\na.v = 2', "hidden inside A"),
     ('shape A(n)\n    hidden fn s() => 1\nA(1).s()', "hidden inside A"),
-    ('hidden fn f() => 1', "inside a shape"),
+    ('hidden let x = 1', "inside a shape"),
+    ('use mathz', "Did you mean 'maths'"),
+    ('use maths\nsay maths.gdc(4, 6)', "Did you mean 'gcd'"),
+    ('use maths\nsay maths.whole(1, "x")', "hidden inside the maths"),
+    ('use whole from maths', "hidden inside the maths"),
+    ('use maths\nsay maths.factorial(2.5)', "whole number"),
+    ('use maths\nsay maths.median([])', "maths library"),
+    ('use draw\nsay draw.pad("a", 3, align: "up")', "center"),
+    ('use maths\nmaths = 1', "maths"),
     ('shape Animal\n    fn sound()\nAnimal()', "outline"),
     ('shape Animal\n    fn sound()\nshape Cat from Animal\nCat()', "outline"),
+]
+
+# libraries: use, maths and draw
+WORKS += [
+    ('use maths\nsay maths.gcd(12, 18)', "6"),
+    ('use maths as m\nsay m.primes(10)', "[2, 3, 5, 7]"),
+    ('use lcm, is_prime from maths\nsay lcm(4, 6), is_prime(7)', "12 true"),
+    ('use maths\nuse maths\nsay maths.median([3, 1, 2])', "2"),
+    ('use maths\nsay maths', "<library maths>"),
+    ('use maths\nsay type(maths)', "library"),
+    ('fn f() => maths.factorial(4)\nsay f()\nuse maths', "24"),
+    ('use maths\nsay [2, 9, 4] |> maths.spread', "7"),
+    ('use draw\nsay draw.progress(1, 2, width: 4)', "[██░░] 50%"),
+    ('use box from draw\nsay box("hi")', "┌────┐\n│ hi │\n└────┘"),
+    ('let use = 3\nsay use', "3"),
+    ('fn use(x) => x * 2\nsay use(4)', "8"),
 ]
 
 def attempt(source):

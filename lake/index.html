@@ -305,7 +305,7 @@ const state = {
 /* ───────────── syntax colouring ───────────── */
 
 const CONTROL = new Set("if elif else then while for in match return stop skip repeat by try otherwise fail expect test".split(" "));
-const DECL = new Set("let var fn shape ability choice hidden".split(" "));
+const DECL = new Set("let var fn shape ability choice hidden use".split(" "));
 const SPECIAL = new Set("glide flock spawn await".split(" "));
 const WORDOP = new Set("and or not is ref".split(" "));
 const CONSTS = new Set("true false yes no nothing".split(" "));
@@ -619,7 +619,7 @@ function serverBackend() {
   };
 }
 
-const WEB_EXAMPLES = ["hello", "tour", "pillars", "polymorphism", "glide", "choices", "flock", "bank", "fizzbuzz", "readme_demo"]
+const WEB_EXAMPLES = ["hello", "tour", "pillars", "polymorphism", "glide", "choices", "flock", "bank", "fizzbuzz", "libraries", "readme_demo"]
   .map(n => `examples/${n}.swan`);
 
 function webBackend() {

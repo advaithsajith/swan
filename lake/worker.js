@@ -1,5 +1,5 @@
 // Runs Swan inside the browser, for the web version of Lake.
-// Python itself comes from Pyodide; swan.py is loaded from this site.
+// Python itself comes from Pyodide; swan.py and its libraries are loaded from this site.
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js");
 
 const RUNNER = `
@@ -40,12 +40,19 @@ def check(job):
         _send("reply", id=job["id"], error=_error(e, job["code"]), entries=[])
 `;
 
+const LIBRARIES = ["maths", "draw"];
+
 let python = null;
 
 async function start() {
   python = await loadPyodide();
   const source = await (await fetch("../swan.py", { cache: "no-cache" })).text();
   python.FS.writeFile("/home/pyodide/swan.py", source);
+  python.FS.mkdir("/home/pyodide/lib");
+  for (const name of LIBRARIES) {
+    const lib = await (await fetch(`../lib/${name}.swan`, { cache: "no-cache" })).text();
+    python.FS.writeFile(`/home/pyodide/lib/${name}.swan`, lib);
+  }
   python.runPython("import sys; sys.path.insert(0, '/home/pyodide'); sys.setrecursionlimit(6000)");
   python.runPython(RUNNER);
   const version = python.runPython("swan.VERSION");

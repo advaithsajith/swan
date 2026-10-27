@@ -19,6 +19,9 @@ jobs:
       - name: Examples and their tests
         shell: bash
         run: |
+          for f in lib/*.swan; do
+            python swan.py test "$f" > /dev/null
+          done
           for f in examples/*.swan; do
             python swan.py "$f" > /dev/null
             python swan.py test "$f" > /dev/null
