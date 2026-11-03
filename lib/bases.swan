@@ -1,0 +1,131 @@
+--- Numbers in other bases: binary, hex, anything from base 2 to 36, and bit-by-bit logic.
+--- Bring it in with:  use bases   (then bases.to_binary(10))
+--- or pick a few:     use to_hex, from_hex from bases
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn digit_chars() => "0123456789abcdefghijklmnopqrstuvwxyz"
+
+hidden fn whole(n, what)
+    if not (n is number) or floor(n) != n or n < 0
+        fail "{what} needs a whole number of 0 or more, but got {n}."
+
+hidden fn a_base(base, what)
+    if not (base is number) or floor(base) != base or not (2 <= base <= 36)
+        fail "{what} needs a base from 2 to 36, but got {base}."
+
+hidden fn index_in(t, c)
+    for i, ch in t
+        if ch == c then return i
+    nothing
+
+hidden fn strip_prefix(t, prefix)
+    if starts_with(t, prefix) and length(t) > length(prefix)
+        return join([t[k] for k in length(prefix)..<length(t)])
+    t
+
+
+-- ── any base ────────────────────────────────────────────
+
+--- A number written in another base: to_base(255, 16) is "ff". Digits past 9 are the letters a to z.
+fn to_base(n, base)
+    whole(n, "to_base")
+    a_base(base, "to_base")
+    if n == 0 then return "0"
+    var left = n
+    var out = ""
+    while left > 0
+        out = digit_chars()[left % base] + out
+        left = left // base
+    out
+
+--- Reads text written in another base: from_base("ff", 16) is 255. Capitals are fine.
+fn from_base(t, base)
+    if not (t is text)
+        fail "from_base needs text like \"ff\", but got {type(t)}."
+    a_base(base, "from_base")
+    let clean = lower(trim(t))
+    if clean == ""
+        fail "from_base needs some digits, but got empty text."
+    var total = 0
+    for c in clean
+        let value = index_in(digit_chars(), c)
+        if value == nothing or value >= base
+            fail "\"{t}\" isn't a base {base} number: '{c}' isn't one of its digits."
+        total = total * base + value
+    total
+
+
+-- ── binary and hex ──────────────────────────────────────
+
+--- A number in binary: to_binary(10) is "1010"
+fn to_binary(n) => to_base(n, 2)
+
+--- Reads binary text: from_binary("1010") is 10. A "0b" at the front is fine.
+fn from_binary(t)
+    if not (t is text)
+        fail "from_binary needs text like \"1010\", but got {type(t)}."
+    from_base(strip_prefix(lower(trim(t)), "0b"), 2)
+
+--- A number in hexadecimal: to_hex(255) is "ff"
+fn to_hex(n) => to_base(n, 16)
+
+--- Reads hexadecimal text: from_hex("ff") is 255. A "0x" at the front is fine.
+fn from_hex(t)
+    if not (t is text)
+        fail "from_hex needs text like \"ff\", but got {type(t)}."
+    from_base(strip_prefix(lower(trim(t)), "0x"), 16)
+
+--- The bits of a number as a list, biggest first: bits(5) is [1, 0, 1]
+fn bits(n)
+    whole(n, "bits")
+    chars(to_binary(n)) |> map(number)
+
+
+-- ── bit by bit ──────────────────────────────────────────
+
+hidden fn bitwise(a, b, what, combine)
+    whole(a, what)
+    whole(b, what)
+    var x = a
+    var y = b
+    var total = 0
+    var place = 1
+    while x > 0 or y > 0
+        if combine(x % 2, y % 2) == 1 then total += place
+        x = x // 2
+        y = y // 2
+        place *= 2
+    total
+
+--- Keeps only the bits that are 1 in both numbers: bit_and(12, 10) is 8
+fn bit_and(a, b) => bitwise(a, b, "bit_and", (p, q) => p * q)
+
+--- Keeps the bits that are 1 in either number: bit_or(12, 10) is 14
+fn bit_or(a, b) => bitwise(a, b, "bit_or", (p, q) => max(p, q))
+
+--- Keeps the bits that are 1 in exactly one of the numbers: bit_xor(12, 10) is 6
+fn bit_xor(a, b) => bitwise(a, b, "bit_xor", (p, q) => (p + q) % 2)
+
+
+test "binary"
+    expect to_binary(10) == "1010"
+    expect to_binary(0) == "0"
+    expect from_binary("1010") == 10
+    expect from_binary("0b1111") == 15
+    expect bits(5) == [1, 0, 1]
+
+test "hex and other bases"
+    expect to_hex(255) == "ff"
+    expect from_hex("FF") == 255
+    expect from_hex("0xff") == 255
+    expect to_base(35, 36) == "z"
+    expect from_base("z", 36) == 35
+    expect from_base(to_base(123456, 7), 7) == 123456
+
+test "bit by bit"
+    expect bit_and(12, 10) == 8
+    expect bit_or(12, 10) == 14
+    expect bit_xor(12, 10) == 6
+    expect bit_xor(7, 0) == 7

@@ -1,0 +1,139 @@
+--- A text canvas to draw on: points, lines, rectangles, circles and words, then show() it.
+--- x goes right and y goes down, both counting from 0 at the top-left corner.
+--- Bring it in with:  use canvas   (then let c = canvas.Canvas(20, 8))
+--- or pick a few:     use Canvas from canvas
+
+
+hidden fn size(n, what)
+    if not (n is number) or floor(n) != n or n < 1
+        fail "{what} needs a whole number of 1 or more, but got {n}."
+
+hidden fn a_mark(mark, what)
+    if not (mark is text) or length(mark) != 1
+        fail "{what} needs a single character to draw with, but got {mark}."
+    mark
+
+hidden fn whole_point(x, y, what)
+    if not (x is number) or not (y is number)
+        fail "{what} needs numbers for x and y."
+
+
+--- A canvas width characters across and height down, filled with the background character.
+--- Drawing outside the edges is quietly ignored, so you can't go wrong.
+shape Canvas(width, height, background = " ", hidden rows = [])
+    --- Puts one character at x, y.
+    fn plot(x, y, mark = "#")
+        make_rows()
+        a_mark(mark, "plot")
+        whole_point(x, y, "plot")
+        let px = round(x)
+        let py = round(y)
+        if 0 <= py < height and 0 <= px < width
+            rows[py][px] = mark
+        me
+
+    --- A straight line from x1, y1 to x2, y2.
+    fn line(x1, y1, x2, y2, mark = "#")
+        whole_point(x1, y1, "line")
+        whole_point(x2, y2, "line")
+        var x = round(x1)
+        var y = round(y1)
+        let ex = round(x2)
+        let ey = round(y2)
+        let dx = abs(ex - x)
+        let dy = -abs(ey - y)
+        let sx = if x < ex then 1 else -1
+        let sy = if y < ey then 1 else -1
+        var err = dx + dy
+        while true
+            plot(x, y, mark)
+            if x == ex and y == ey then stop
+            let e2 = 2 * err
+            if e2 >= dy
+                err += dy
+                x += sx
+            if e2 <= dx
+                err += dx
+                y += sy
+        me
+
+    --- A rectangle with its top-left corner at x, y. Add filled: true to colour it in.
+    fn rect(x, y, w, h, mark = "#", filled = false)
+        whole_point(x, y, "rect")
+        size(w, "rect")
+        size(h, "rect")
+        for row in 0..<h
+            for col in 0..<w
+                let edge = row == 0 or row == h - 1 or col == 0 or col == w - 1
+                if filled or edge then plot(x + col, y + row, mark)
+        me
+
+    --- A circle around cx, cy with radius r.
+    fn circle(cx, cy, r, mark = "#")
+        whole_point(cx, cy, "circle")
+        if not (r is number) or r < 0 then fail "circle needs a radius of 0 or more, but got {r}."
+        var x = round(r)
+        var y = 0
+        var err = 1 - x
+        while x >= y
+            for p in [[x, y], [y, x], [-y, x], [-x, y], [-x, -y], [-y, -x], [y, -x], [x, -y]]
+                plot(cx + p[0], cy + p[1], mark)
+            y += 1
+            if err < 0
+                err += 2 * y + 1
+            else
+                x -= 1
+                err += 2 * (y - x) + 1
+        me
+
+    --- Writes some text starting at x, y.
+    fn write(x, y, words_to_write)
+        whole_point(x, y, "write")
+        for i, c in text(words_to_write)
+            plot(x + i, y, c)
+        me
+
+    --- Wipes the canvas back to the background.
+    fn clear()
+        rows = []
+        make_rows()
+        me
+
+    --- The canvas as text, one line per row.
+    fn show()
+        make_rows()
+        join([join(r) for r in rows], "\n")
+
+    hidden fn make_rows()
+        if length(rows) == 0
+            size(width, "Canvas")
+            size(height, "Canvas")
+            a_mark(background, "Canvas")
+            rows = [[background] * width for y in 1..height]
+
+
+test "plotting and writing"
+    let c = Canvas(4, 2, background: ".")
+    c.plot(1, 0)
+    c.plot(9, 9)
+    c.write(0, 1, "hi")
+    expect c.show() == ".#..\nhi.."
+    c.clear()
+    expect c.show() == "....\n...."
+
+test "lines and rectangles"
+    let c = Canvas(5, 3, background: ".")
+    c.line(0, 0, 4, 2, "*")
+    expect c.show() == "*....\n.**..\n...**"
+    let r = Canvas(4, 3, background: ".")
+    r.rect(0, 0, 4, 3)
+    expect r.show() == "####\n#..#\n####"
+    let f = Canvas(3, 2, background: ".")
+    f.rect(1, 0, 2, 2, "o", filled: true)
+    expect f.show() == ".oo\n.oo"
+
+test "circles"
+    let c = Canvas(5, 5, background: ".")
+    c.circle(2, 2, 2, "o")
+    expect c.show() == ".ooo.\no...o\no...o\no...o\n.ooo."
+    expect c.circle(2, 2, 0).show()[14] == "#"

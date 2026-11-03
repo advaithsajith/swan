@@ -1,0 +1,144 @@
+--- Reading and writing CSV, the comma-separated text that spreadsheets save.
+--- Read a file with read_file, then parse it; or write(rows) and write_file the result.
+--- Bring it in with:  use csv   (then csv.parse(read_file("birds.csv")))
+--- or pick a few:     use parse, write from csv
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn some_text(t, what)
+    if not (t is text)
+        fail "{what} needs CSV text, but got {type(t)}. Read a file first with read_file."
+    t
+
+hidden fn a_separator(sep, what)
+    if not (sep is text) or length(sep) != 1 or sep == "\""
+        fail "{what}'s separator should be one character, like \",\" or \";\"."
+    sep
+
+
+-- ── taking CSV apart ────────────────────────────────────
+
+--- Splits one line into its fields, minding quotes: a quoted field can hold the separator,
+--- and two quotes inside it ("") mean one quote.
+hidden fn fields(line, sep)
+    var out = []
+    var field = ""
+    var quoted = false
+    var i = 0
+    while i < length(line)
+        let c = line[i]
+        if quoted
+            if c == "\"" and i + 1 < length(line) and line[i + 1] == "\""
+                field += "\""
+                i += 1
+            elif c == "\""
+                quoted = false
+            else
+                field += c
+        elif c == "\""
+            quoted = true
+        elif c == sep
+            push(out, field)
+            field = ""
+        else
+            field += c
+        i += 1
+    push(out, field)
+    out
+
+--- Turns a field's text into a number when it looks like one.
+hidden fn tidy(value)
+    let t = trim(value)
+    if t == "" then return ""
+    if t in ["true", "false"] then return t == "true"
+    if starts_with(t, "0") and length(t) > 1 and not starts_with(t, "0.") then return value
+    for c in chars(t)
+        if not (c in "0123456789.-")
+            return value
+    var out = value
+    try
+        out = number(t)
+    otherwise problem
+        out = value
+    out
+
+--- Every line as a list of fields, numbers turned into numbers: rows("a,1\nb,2") is [["a", 1], ["b", 2]]
+fn rows(csv_text, separator = ",")
+    some_text(csv_text, "rows")
+    a_separator(separator, "rows")
+    var out = []
+    for line in lines(replace(csv_text, "\r", ""))
+        if trim(line) != ""
+            push(out, fields(line, separator) |> map(tidy))
+    out
+
+--- The CSV as a list of maps. The first line gives the headings: parse("name,age\nPip,1") is [{name: "Pip", age: 1}]
+fn parse(csv_text, separator = ",")
+    let all = rows(some_text(csv_text, "parse"), separator: separator)
+    if length(all) == 0 then return []
+    let headings = all[0] |> map(h => text(h))
+    var out = []
+    for i, r in all
+        if i == 0 then skip
+        if length(r) != length(headings)
+            fail "Line {i + 1} of the CSV has {length(r)} fields, but the headings line has {length(headings)}."
+        var record = {}
+        for k, h in headings
+            record[h] = r[k]
+        push(out, record)
+    out
+
+--- One column from parsed rows: column(parse(text), "age") is a list of the ages.
+fn column(records, name)
+    if not (records is list)
+        fail "column needs the list that parse gives back."
+    [get(r, name, nothing) for r in records]
+
+
+-- ── making CSV ──────────────────────────────────────────
+
+--- Wraps a field in quotes if it needs them (it has the separator, a quote or a new line).
+hidden fn quoted(value, sep)
+    let t = text(value)
+    if sep in t or "\"" in t or "\n" in t
+        return "\"" + replace(t, "\"", "\"\"") + "\""
+    t
+
+--- CSV text from a list of lists, one line per list.
+fn write_rows(lists, separator = ",")
+    if not (lists is list)
+        fail "write_rows needs a list of lists, like [[\"name\", \"age\"], [\"Pip\", 1]]."
+    a_separator(separator, "write_rows")
+    var out = []
+    for r in lists
+        if not (r is list)
+            fail "write_rows needs a list of lists, but one row is {type(r)}."
+        push(out, join([quoted(v, separator) for v in r], separator))
+    join(out, "\n")
+
+--- CSV text from a list of maps, with a headings line first: write([{name: "Pip", age: 1}])
+fn write(records, separator = ",")
+    if not (records is list) or length(records) == 0 or not (records[0] is map)
+        fail "write needs a list of maps, like [\{name: \"Pip\", age: 1\}]."
+    let headings = keys(records[0])
+    write_rows([headings] + [[get(r, h, "") for h in headings] for r in records], separator: separator)
+
+
+test "taking CSV apart"
+    expect rows("a,1\nb,2") == [["a", 1], ["b", 2]]
+    expect rows("a;1.5", separator: ";") == [["a", 1.5]]
+    expect rows("\"Swan, mute\",\"says \"\"hi\"\"\"") == [["Swan, mute", "says \"hi\""]]
+    expect rows("x,y\r\n\n1,2\r\n") == [["x", "y"], [1, 2]]
+    expect rows("007,1-2,true") == [["007", "1-2", true]]
+
+test "parse and column"
+    let birds = parse("name,age\nOdette,7\nPip,1")
+    expect birds == [{name: "Odette", age: 7}, {name: "Pip", age: 1}]
+    expect column(birds, "age") == [7, 1]
+    expect parse("") == []
+
+test "making CSV"
+    expect write_rows([["a", 1], ["b, c", "say \"hi\""]]) == "a,1\n\"b, c\",\"say \"\"hi\"\"\""
+    expect write([{name: "Pip", age: 1}]) == "name,age\nPip,1"
+    expect parse(write([{name: "Odette", wingspan: 2.3}])) == [{name: "Odette", wingspan: 2.3}]

@@ -1,0 +1,172 @@
+--- Sorting, done by hand: the classic ways to put a list in order, written out so you can read them.
+--- Swan's built-in sort is all you need in real programs; these are for learning how sorting works.
+--- Each one gives back a new list and leaves yours alone. Add key: to sort on something else, like key: s => s.age.
+--- Bring it in with:  use sorting   (then sorting.bubble_sort([3, 1, 2]))
+--- or pick a few:     use merge_sort, sort_steps from sorting
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_copy(xs, what)
+    if xs is range then return map(xs, x => x)
+    if not (xs is list)
+        fail "{what} needs a list, but got {type(xs)}."
+    copy(xs)
+
+--- What to compare: the item itself, or what key gives for it.
+hidden fn key_of(x, key)
+    if key == nothing then return x
+    if not (key is function)
+        fail "key: should be a little function, like: key: s => s.age"
+    key(x)
+
+hidden fn before(a, b, key) => key_of(a, key) < key_of(b, key)
+
+
+-- ── the simple sorts ────────────────────────────────────
+
+--- Swaps neighbours that are the wrong way round, again and again, until nothing moves.
+fn bubble_sort(xs, key = nothing)
+    var items = a_copy(xs, "bubble_sort")
+    var moved = true
+    while moved
+        moved = false
+        for i in 0..<max(length(items) - 1, 0)
+            if before(items[i + 1], items[i], key)
+                items[i], items[i + 1] = items[i + 1], items[i]
+                moved = true
+    items
+
+--- Finds the smallest item left and moves it to the front, then the next smallest, and so on.
+fn selection_sort(xs, key = nothing)
+    var items = a_copy(xs, "selection_sort")
+    for i in 0..<max(length(items) - 1, 0)
+        var smallest = i
+        for j in (i + 1)..<length(items)
+            if before(items[j], items[smallest], key) then smallest = j
+        if smallest != i
+            items[i], items[smallest] = items[smallest], items[i]
+    items
+
+--- Takes items one at a time and slides each back to where it belongs, like sorting a hand of cards.
+fn insertion_sort(xs, key = nothing)
+    var items = a_copy(xs, "insertion_sort")
+    for i in 1..<max(length(items), 1)
+        var j = i
+        while j > 0 and before(items[j], items[j - 1], key)
+            items[j], items[j - 1] = items[j - 1], items[j]
+            j -= 1
+    items
+
+
+-- ── the clever sorts ────────────────────────────────────
+
+--- Splits the list in half, sorts each half, then merges the two sorted halves together.
+fn merge_sort(xs, key = nothing)
+    let items = a_copy(xs, "merge_sort")
+    if length(items) < 2 then return items
+    let mid = length(items) // 2
+    merge([items[i] for i in 0..<mid] |> merge_sort(key: key), [items[i] for i in mid..<length(items)] |> merge_sort(key: key), key)
+
+hidden fn merge(left, right, key)
+    var out = []
+    var i = 0
+    var j = 0
+    while i < length(left) and j < length(right)
+        if before(right[j], left[i], key)
+            push(out, right[j])
+            j += 1
+        else
+            push(out, left[i])
+            i += 1
+    if i < length(left) then out = out + [left[k] for k in i..<length(left)]
+    if j < length(right) then out = out + [right[k] for k in j..<length(right)]
+    out
+
+--- Picks a pivot, puts smaller items before it and bigger ones after, then sorts each side.
+fn quick_sort(xs, key = nothing)
+    let items = a_copy(xs, "quick_sort")
+    if length(items) < 2 then return items
+    let pivot = items[length(items) // 2]
+    let smaller = keep(items, x => before(x, pivot, key))
+    let same = keep(items, x => not before(x, pivot, key) and not before(pivot, x, key))
+    let bigger = keep(items, x => before(pivot, x, key))
+    quick_sort(smaller, key: key) + same + quick_sort(bigger, key: key)
+
+--- Counts how many of each number there are, then writes them out in order. Whole numbers of 0 or more only.
+fn counting_sort(xs)
+    let items = a_copy(xs, "counting_sort")
+    for x in items
+        if not (x is number) or floor(x) != x or x < 0
+            fail "counting_sort only sorts whole numbers of 0 or more, but the list has {x}."
+    if length(items) == 0 then return []
+    var counts = [0] * (max(items) + 1)
+    for x in items
+        counts[x] += 1
+    var out = []
+    for n, c in counts
+        repeat c
+            push(out, n)
+    out
+
+
+-- ── watching and learning ───────────────────────────────
+
+--- What the list looks like after each pass of bubble sort, so you can watch it settle.
+fn sort_steps(xs, key = nothing)
+    var items = a_copy(xs, "sort_steps")
+    var steps = [copy(items)]
+    var moved = true
+    while moved
+        moved = false
+        for i in 0..<max(length(items) - 1, 0)
+            if before(items[i + 1], items[i], key)
+                items[i], items[i + 1] = items[i + 1], items[i]
+                moved = true
+        if moved then push(steps, copy(items))
+    steps
+
+--- true if the list is already in order.
+fn is_sorted(xs, key = nothing)
+    let items = a_copy(xs, "is_sorted")
+    if length(items) < 2 then return true
+    all(1..<length(items), i => not before(items[i], items[i - 1], key))
+
+--- One sentence on how a sort works: describe("merge_sort")
+fn describe(name)
+    match name
+        "bubble_sort" => "Bubble sort swaps neighbours that are the wrong way round until a whole pass changes nothing."
+        "selection_sort" => "Selection sort finds the smallest item left and moves it to the front, over and over."
+        "insertion_sort" => "Insertion sort takes each item and slides it back to its place, like sorting cards in your hand."
+        "merge_sort" => "Merge sort splits the list in half, sorts each half, and merges the halves back together."
+        "quick_sort" => "Quick sort picks a pivot, puts smaller items before it and bigger after, then sorts each side."
+        "counting_sort" => "Counting sort counts how many of each number there are, then writes them out in order."
+        _ => fail "I don't know a sort called '{name}'. Try: bubble_sort, selection_sort, insertion_sort, merge_sort, quick_sort, counting_sort."
+
+
+test "the simple sorts"
+    let messy = [5, 3, 8, 1, 9, 2, 7]
+    expect bubble_sort(messy) == [1, 2, 3, 5, 7, 8, 9]
+    expect selection_sort(messy) == [1, 2, 3, 5, 7, 8, 9]
+    expect insertion_sort(messy) == [1, 2, 3, 5, 7, 8, 9]
+    expect messy == [5, 3, 8, 1, 9, 2, 7]
+    expect bubble_sort([]) == [] and insertion_sort([1]) == [1]
+
+test "the clever sorts"
+    let messy = [5, 3, 8, 1, 9, 2, 7, 3]
+    expect merge_sort(messy) == [1, 2, 3, 3, 5, 7, 8, 9]
+    expect quick_sort(messy) == [1, 2, 3, 3, 5, 7, 8, 9]
+    expect counting_sort(messy) == [1, 2, 3, 3, 5, 7, 8, 9]
+    expect merge_sort(5..1) == [1, 2, 3, 4, 5]
+
+test "sorting by something"
+    let birds = [{name: "Pip", age: 1}, {name: "Odette", age: 7}, {name: "Odile", age: 6}]
+    expect map(bubble_sort(birds, key: b => b.age), b => b.name) == ["Pip", "Odile", "Odette"]
+    expect map(merge_sort(birds, key: b => b.name), b => b.name) == ["Odette", "Odile", "Pip"]
+    expect quick_sort(["ccc", "a", "bb"], key: length) == ["a", "bb", "ccc"]
+    expect is_sorted([1, 2, 2]) and not is_sorted([2, 1])
+
+test "watching and learning"
+    expect sort_steps([3, 1, 2]) == [[3, 1, 2], [1, 2, 3]]
+    expect sort_steps([3, 2, 1]) == [[3, 2, 1], [2, 1, 3], [1, 2, 3]]
+    expect starts_with(describe("merge_sort"), "Merge sort")

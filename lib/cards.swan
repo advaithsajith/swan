@@ -1,0 +1,167 @@
+--- Playing cards: a Card, a Deck to shuffle and deal from, and the values of hands.
+--- Bring it in with:  use cards   (then let deck = cards.Deck())
+--- or pick a few:     use Deck, hand_text from cards
+
+use chance
+
+
+--- The four suits, as the symbols cards use.
+fn suits() => ["♠", "♥", "♦", "♣"]
+
+--- The thirteen ranks, lowest first.
+fn ranks() => ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
+
+hidden fn suit_symbol(suit)
+    let names = {spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣"}
+    if suit in suits() then return suit
+    if suit is text and has(names, lower(suit)) then return names[lower(suit)]
+    fail "A suit should be one of ♠ ♥ ♦ ♣ (or spades, hearts, diamonds, clubs), but got {text(suit)}."
+
+hidden fn rank_index(rank)
+    for i, r in ranks()
+        if r == upper(text(rank)) then return i
+    fail "A rank should be 2 to 10, J, Q, K or A, but got {text(rank)}."
+
+
+--- One playing card: Card("A", "♠") or Card(10, "hearts").
+shape Card(rank, suit)
+    --- The card as text, like "A♠".
+    fn show() => "{upper(text(rank))}{suit_symbol(suit)}"
+
+    --- Its number for scoring: 2 to 10 as they are, J Q K are 10, A is 11 (or 1 with ace_high: false).
+    fn value(ace_high = true)
+        let i = rank_index(rank)
+        if i <= 8 then return i + 2
+        if i == 12 then return if ace_high then 11 else 1
+        10
+
+    --- Where it sits in the order 2 … A, from 0 to 12. Handy for sorting.
+    fn order() => rank_index(rank)
+
+    --- "red" for hearts and diamonds, "black" for spades and clubs.
+    fn colour() => if suit_symbol(suit) in ["♥", "♦"] then "red" else "black"
+
+
+--- A full deck of 52 cards in order: 2♠ 3♠ … A♣
+fn full_deck()
+    var found = []
+    for s in suits()
+        for r in ranks()
+            push(found, Card(r, s))
+    found
+
+--- A deck you can shuffle and deal from. It starts in order; call shuffle() first for a real game.
+shape Deck(hidden cards = full_deck())
+    --- Mixes the remaining cards up.
+    fn shuffle()
+        cards = chance.shuffle(cards)
+        me
+
+    --- Takes count cards off the top and gives them back as a list.
+    fn deal(count = 1)
+        if not (count is number) or floor(count) != count or count < 0
+            fail "deal needs a whole number of cards, but got {count}."
+        if count > length(cards)
+            fail "The deck only has {length(cards)} cards left, so it can't deal {count}."
+        var hand = []
+        repeat count
+            push(hand, pop(cards))
+        hand
+
+    --- How many cards are left.
+    fn remaining() => length(cards)
+
+    --- Puts all 52 cards back, in order.
+    fn reset()
+        cards = full_deck()
+        me
+
+
+-- ── hands ───────────────────────────────────────────────
+
+hidden fn some_cards(hand, what)
+    if not (hand is list) or length(hand) == 0 or not all(hand, c => c is Card)
+        fail "{what} needs a list of Cards."
+    hand
+
+--- A hand as text: hand_text([Card("A", "♠"), Card(10, "♥")]) is "A♠ 10♥"
+fn hand_text(hand) => some_cards(hand, "hand_text") |> map(c => c.show()) |> join(" ")
+
+--- The hand's blackjack total. Aces count 11 unless that would go over 21, then 1.
+fn blackjack_value(hand)
+    some_cards(hand, "blackjack_value")
+    var total = sum(hand |> map(c => c.value()))
+    var aces = count(hand, c => upper(text(c.rank)) == "A")
+    while total > 21 and aces > 0
+        total -= 10
+        aces -= 1
+    total
+
+--- true if every card in the hand is the same suit.
+fn is_flush(hand)
+    some_cards(hand, "is_flush")
+    length(unique(hand |> map(c => suit_symbol(c.suit)))) == 1
+
+--- true if the hand's ranks run in a row, like 5 6 7 8 9 (an ace can also sit below the 2).
+fn is_straight(hand)
+    some_cards(hand, "is_straight")
+    let orders = sort(unique(hand |> map(c => c.order())))
+    if length(orders) != length(hand) then return false
+    if orders == [0, 1, 2, 3, 12] then return true
+    orders[-1] - orders[0] == length(orders) - 1
+
+--- What kind of five-card poker hand this is, from "high card" up to "straight flush".
+fn hand_kind(hand)
+    some_cards(hand, "hand_kind")
+    if length(hand) != 5
+        fail "hand_kind looks at five-card hands, but this one has {length(hand)}."
+    var counts = {}
+    for c in hand
+        counts[c.order()] = get(counts, c.order(), 0) + 1
+    let groups = sort(values(counts)) |> reverse
+    let straight = is_straight(hand)
+    let flush = is_flush(hand)
+    if straight and flush then return "straight flush"
+    if groups[0] == 4 then return "four of a kind"
+    if groups == [3, 2] then return "full house"
+    if flush then return "flush"
+    if straight then return "straight"
+    if groups[0] == 3 then return "three of a kind"
+    if groups == [2, 2, 1] then return "two pair"
+    if groups[0] == 2 then return "pair"
+    "high card"
+
+
+test "cards"
+    expect Card("A", "♠").show() == "A♠"
+    expect Card(10, "hearts").show() == "10♥"
+    expect Card("k", "clubs").value() == 10 and Card(7, "♦").value() == 7
+    expect Card("A", "♠").value() == 11 and Card("A", "♠").value(ace_high: false) == 1
+    expect Card("Q", "♥").colour() == "red" and Card(2, "♣").colour() == "black"
+
+test "decks"
+    let deck = Deck()
+    expect deck.remaining() == 52
+    expect hand_text(deck.deal(2)) == "A♣ K♣"
+    expect deck.remaining() == 50
+    deck.shuffle()
+    let hand = deck.deal(5)
+    expect length(hand) == 5 and deck.remaining() == 45
+    expect length(unique(hand |> map(c => c.show()))) == 5
+    deck.reset()
+    expect deck.remaining() == 52
+    expect length(unique(full_deck() |> map(c => c.show()))) == 52
+
+test "hand values"
+    fn hand(...texts) => texts |> map(t => Card(t[0..-2], t[-1]))
+    expect blackjack_value(hand("A♠", "K♥")) == 21
+    expect blackjack_value(hand("A♠", "A♥", "9♦")) == 21
+    expect blackjack_value(hand("10♠", "9♥", "5♦")) == 24
+    expect hand_kind(hand("2♠", "3♠", "4♠", "5♠", "6♠")) == "straight flush"
+    expect hand_kind(hand("A♠", "2♥", "3♦", "4♣", "5♠")) == "straight"
+    expect hand_kind(hand("9♠", "9♥", "9♦", "4♣", "4♠")) == "full house"
+    expect hand_kind(hand("9♠", "9♥", "9♦", "9♣", "4♠")) == "four of a kind"
+    expect hand_kind(hand("2♠", "7♠", "9♠", "J♠", "K♠")) == "flush"
+    expect hand_kind(hand("9♠", "9♥", "4♦", "4♣", "A♠")) == "two pair"
+    expect hand_kind(hand("9♠", "9♥", "4♦", "5♣", "A♠")) == "pair"
+    expect hand_kind(hand("2♠", "9♥", "4♦", "5♣", "A♠")) == "high card"

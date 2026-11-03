@@ -1,0 +1,76 @@
+--- Roman numerals: turning numbers into MMXXVI and back again.
+--- Bring it in with:  use roman   (then roman.to_roman(2026))
+--- or pick a few:     use to_roman, from_roman from roman
+
+
+-- ── the pieces ──────────────────────────────────────────
+
+hidden fn numerals() => [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"],
+                         [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]]
+
+hidden fn piece_at(t, piece, start)
+    if start + length(piece) > length(t) then return false
+    join([t[k] for k in start..<(start + length(piece))]) == piece
+
+
+-- ── to and from ─────────────────────────────────────────
+
+--- A number as a Roman numeral: to_roman(2026) is "MMXXVI". Works from 1 to 3999.
+fn to_roman(n)
+    if not (n is number) or floor(n) != n or not (1 <= n <= 3999)
+        fail "to_roman needs a whole number from 1 to 3999, but got {n}."
+    var left = n
+    var out = ""
+    for pair in numerals()
+        while left >= pair[0]
+            out += pair[1]
+            left -= pair[0]
+    out
+
+--- A Roman numeral as a number: from_roman("XIV") is 14. Small or capital letters both work.
+fn from_roman(t)
+    if not (t is text)
+        fail "from_roman needs text like \"XIV\", but got {type(t)}."
+    let clean = upper(trim(t))
+    if clean == ""
+        fail "from_roman needs a Roman numeral, but got empty text."
+    var total = 0
+    var at = 0
+    for pair in numerals()
+        while piece_at(clean, pair[1], at)
+            total += pair[0]
+            at += length(pair[1])
+    if at != length(clean) or total == 0 or to_roman(total) != clean
+        fail "\"{t}\" isn't a proper Roman numeral. They use I, V, X, L, C, D and M, like XIV for 14."
+    total
+
+--- true if the text is a proper Roman numeral.
+fn is_roman(t)
+    if not (t is text) then return false
+    var ok = true
+    try
+        from_roman(t)
+    otherwise problem
+        ok = false
+    ok
+
+
+test "to roman"
+    expect to_roman(1) == "I"
+    expect to_roman(4) == "IV"
+    expect to_roman(1994) == "MCMXCIV"
+    expect to_roman(2026) == "MMXXVI"
+    expect to_roman(3999) == "MMMCMXCIX"
+
+test "from roman"
+    expect from_roman("XIV") == 14
+    expect from_roman("xiv") == 14
+    expect from_roman(" MMXXVI ") == 2026
+    expect from_roman(to_roman(1877)) == 1877
+
+test "is roman"
+    expect is_roman("XLII")
+    expect not is_roman("IIII")
+    expect not is_roman("VX")
+    expect not is_roman("swan")
+    expect not is_roman(42)

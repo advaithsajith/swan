@@ -1,0 +1,156 @@
+--- Famous number patterns: triangular and square numbers, Collatz, Pascal's triangle and more.
+--- (The maths library has primes, factorial and fibonacci.)
+--- Bring it in with:  use sequences   (then sequences.collatz(6))
+--- or pick a few:     use pascal, triangular from sequences
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn whole(n, what, least = 0)
+    if not (n is number) or floor(n) != n or n < least
+        fail "{what} needs a whole number of {least} or more, but got {n}."
+    n
+
+hidden fn a_number(x, what)
+    if not (x is number)
+        fail "{what} needs a number, but got {type(x)}."
+    x
+
+hidden fn first_n(count, f)
+    if count == 0 then return []
+    [f(k) for k in 1..count]
+
+
+-- ── shapes made of dots ─────────────────────────────────
+
+--- The first n triangular numbers: 1, 3, 6, 10, … (dots stacked in a triangle).
+fn triangular(n) => first_n(whole(n, "triangular"), k => k * (k + 1) // 2)
+
+--- The first n square numbers: 1, 4, 9, 16, …
+fn squares(n) => first_n(whole(n, "squares"), k => k * k)
+
+--- The first n cube numbers: 1, 8, 27, 64, …
+fn cubes(n) => first_n(whole(n, "cubes"), k => k * k * k)
+
+
+-- ── collatz ─────────────────────────────────────────────
+
+--- The Collatz path from n down to 1: halve it if even, triple it and add 1 if odd. collatz(6) is [6, 3, 10, 5, 16, 8, 4, 2, 1]
+fn collatz(n)
+    whole(n, "collatz", least: 1)
+    var path = [n]
+    var k = n
+    while k != 1
+        k = if k % 2 == 0 then k // 2 else 3 * k + 1
+        push(path, k)
+    path
+
+--- How many steps the Collatz path takes from n to reach 1.
+fn collatz_steps(n) => length(collatz(n)) - 1
+
+
+-- ── triangles and progressions ──────────────────────────
+
+--- The first rows of Pascal's triangle, each number the sum of the two above it.
+fn pascal(rows)
+    whole(rows, "pascal")
+    if rows == 0 then return []
+    var triangle = [[1]]
+    repeat rows - 1
+        let above = last(triangle)
+        push(triangle, [1] + [above[i] + above[i + 1] for i in 0..<(length(above) - 1)] + [1])
+    triangle
+
+--- count numbers that each go up by step: arithmetic(2, 3, 4) is [2, 5, 8, 11]
+fn arithmetic(start, step, count)
+    a_number(start, "arithmetic")
+    a_number(step, "arithmetic")
+    whole(count, "arithmetic")
+    if count == 0 then return []
+    [start + step * k for k in 0..<count]
+
+--- count numbers that each multiply by ratio: geometric(3, 2, 4) is [3, 6, 12, 24]
+fn geometric(start, ratio, count)
+    a_number(start, "geometric")
+    a_number(ratio, "geometric")
+    whole(count, "geometric")
+    if count == 0 then return []
+    [start * ratio ** k for k in 0..<count]
+
+
+-- ── special numbers ─────────────────────────────────────
+
+--- true if n equals the sum of its divisors (not counting itself): 6 = 1 + 2 + 3
+fn is_perfect(n)
+    whole(n, "is_perfect", least: 1)
+    if n == 1 then return false
+    var total = 1
+    var d = 2
+    while d * d <= n
+        if n % d == 0
+            total += d
+            if d != n // d then total += n // d
+        d += 1
+    total == n
+
+--- Every perfect number up to limit. There are only four below 10,000: 6, 28, 496 and 8128.
+fn perfect_numbers(limit)
+    whole(limit, "perfect_numbers")
+    if limit < 6 then return []
+    [n for n in 2..limit if is_perfect(n)]
+
+--- true for a happy number: keep adding the squares of its digits and you reach 1 (not a loop).
+fn happy(n)
+    whole(n, "happy", least: 1)
+    var seen = []
+    var k = n
+    while k != 1 and k not in seen
+        push(seen, k)
+        k = sum(chars(text(k)) |> map(d => number(d) ** 2))
+    k == 1
+
+--- The look-and-say sequence: read each run of digits aloud. From "1": 11, 21, 1211, 111221, …
+fn look_and_say(start, steps)
+    if not (start is text) or start == "" or not all(chars(start), c => c in "0123456789")
+        fail "look_and_say needs some digits as text to start from, like \"1\"."
+    whole(steps, "look_and_say")
+    var current = start
+    repeat steps
+        var out = ""
+        var run = 1
+        for i, c in current
+            if i + 1 < length(current) and current[i + 1] == c
+                run += 1
+            else
+                out += "{run}{c}"
+                run = 1
+        current = out
+    current
+
+
+test "shapes made of dots"
+    expect triangular(5) == [1, 3, 6, 10, 15]
+    expect squares(4) == [1, 4, 9, 16]
+    expect cubes(3) == [1, 8, 27]
+    expect triangular(0) == []
+
+test "collatz"
+    expect collatz(6) == [6, 3, 10, 5, 16, 8, 4, 2, 1]
+    expect collatz(1) == [1]
+    expect collatz_steps(27) == 111
+
+test "triangles and progressions"
+    expect pascal(4) == [[1], [1, 1], [1, 2, 1], [1, 3, 3, 1]]
+    expect pascal(1) == [[1]]
+    expect arithmetic(2, 3, 4) == [2, 5, 8, 11]
+    expect geometric(3, 2, 4) == [3, 6, 12, 24]
+    expect geometric(1, 0.5, 3) == [1, 0.5, 0.25]
+
+test "special numbers"
+    expect is_perfect(28)
+    expect not is_perfect(27)
+    expect perfect_numbers(500) == [6, 28, 496]
+    expect happy(19)
+    expect not happy(4)
+    expect look_and_say("1", 4) == "111221"
+    expect look_and_say("3", 1) == "13"

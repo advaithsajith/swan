@@ -1,0 +1,88 @@
+--- Keeping a log of what a program does, with a time, a level and a name on every line.
+--- Make one with Logger(), then log.info("started"). Lines are shown, kept in memory, and
+--- can also go to a file. Bring it in with:  use log   (then let log = log.Logger("shop"))
+
+use clock
+
+
+-- ── levels ──────────────────────────────────────────────
+
+--- The levels, quietest first. A logger set to "warn" only shows warn and error lines.
+fn levels() => ["debug", "info", "warn", "error"]
+
+hidden fn level_number(level)
+    if not (level is text) or not (level in levels())
+        fail "The level should be one of {join(levels(), ", ")}, but got {text(level)}."
+    for i, name in levels()
+        if name == level then return i
+    0
+
+hidden fn padded_level(level) => upper(level) + " " * (5 - length(level))
+
+--- One finished log line: format("info", "shop", "opened", 0) is "00:00:00 INFO  shop: opened"
+fn format(level, name, message, stamp = nothing)
+    level_number(level)
+    "{clock.time_text(stamp, seconds: true)} {padded_level(level)} {name}: {text(message)}"
+
+
+-- ── the logger ──────────────────────────────────────────
+
+--- A logger with a name, a quietest level to show, and optionally a file to append every line to.
+shape Logger(name = "swan", level = "info", to_file = nothing, hidden lines = [])
+    --- Something only useful while fixing problems.
+    fn debug(message) => write("debug", message)
+
+    --- Something normal worth noting.
+    fn info(message) => write("info", message)
+
+    --- Something odd that the program could cope with.
+    fn warn(message) => write("warn", message)
+
+    --- Something that went wrong.
+    fn error(message) => write("error", message)
+
+    --- Every line this logger has shown so far, oldest first.
+    fn history() => copy(lines)
+
+    --- Forgets the lines kept in memory (the file, if any, is left alone).
+    fn clear()
+        lines = []
+
+    hidden fn write(line_level, message)
+        level_number(level)
+        if level_number(line_level) < level_number(level) then return nothing
+        let line = format(line_level, name, message)
+        push(lines, line)
+        say line
+        if to_file != nothing
+            var old = ""
+            try
+                old = read_file(to_file)
+            otherwise problem
+                old = ""
+            write_file(to_file, old + line + "\n")
+        line
+
+
+test "formatting lines"
+    expect format("info", "shop", "opened", 0) == "00:00:00 INFO  shop: opened"
+    expect format("error", "shop", 404, 3661) == "01:01:01 ERROR shop: 404"
+    expect levels() == ["debug", "info", "warn", "error"]
+
+test "a logger keeps what it shows"
+    let log = Logger("test", level: "warn")
+    expect log.info("quiet") == nothing
+    expect log.history() == []
+    let line = log.error("loud")
+    expect ends_with(line, "ERROR test: loud")
+    expect length(log.history()) == 1
+    log.clear()
+    expect log.history() == []
+
+test "bad levels are explained"
+    var problem = ""
+    try
+        Logger("x", level: "shout").info("hi")
+    otherwise p
+        problem = text(p)
+    expect "debug, info, warn, error" in problem

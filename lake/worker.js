@@ -40,7 +40,7 @@ def check(job):
         _send("reply", id=job["id"], error=_error(e, job["code"]), entries=[])
 `;
 
-const LIBRARIES = ["maths", "draw", "lists", "prose", "chance", "clock", "units"];
+const LIBRARIES = ["bases", "birthday", "calendar", "canvas", "cards", "chance", "cipher", "clock", "collections", "colors", "combos", "csv", "diff", "draw", "emoji", "finance", "fractions", "geometry", "graph", "grid", "hangman", "json", "life", "lists", "log", "machine", "markdown", "maths", "matrix", "maze", "memo", "money", "morse", "music", "physics", "planets", "plot", "prompt", "prose", "quiz", "roman", "search", "sequences", "sets", "solve", "sorting", "spell", "stats", "template", "tictactoe", "todo", "trig", "units", "validate", "vectors", "wordle", "wordplay"];
 
 let python = null;
 
@@ -49,10 +49,12 @@ async function start() {
   const source = await (await fetch("../swan.py", { cache: "no-cache" })).text();
   python.FS.writeFile("/home/pyodide/swan.py", source);
   python.FS.mkdir("/home/pyodide/lib");
-  for (const name of LIBRARIES) {
-    const lib = await (await fetch(`../lib/${name}.swan`, { cache: "no-cache" })).text();
-    python.FS.writeFile(`/home/pyodide/lib/${name}.swan`, lib);
-  }
+  const sources = await Promise.all(LIBRARIES.map(async name => {
+    const response = await fetch(`../lib/${name}.swan`, { cache: "no-cache" });
+    if (!response.ok) throw new Error(`Couldn't load the ${name} library (${response.status}).`);
+    return [name, await response.text()];
+  }));
+  for (const [name, lib] of sources) python.FS.writeFile(`/home/pyodide/lib/${name}.swan`, lib);
   python.runPython("import sys; sys.path.insert(0, '/home/pyodide'); sys.setrecursionlimit(6000)");
   python.runPython(RUNNER);
   const version = python.runPython("swan.VERSION");

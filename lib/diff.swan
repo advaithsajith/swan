@@ -1,0 +1,166 @@
+--- Comparing text: how different two things are, what they share, and what changed between them.
+--- Bring it in with:  use diff   (then diff.levenshtein("kitten", "sitting"))
+--- or pick a few:     use closest, show from diff
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn some_text(t, what)
+    if not (t is text)
+        fail "{what} works on text, but got {type(t)}."
+    t
+
+--- Text becomes its characters; a list stays as it is.
+hidden fn pieces(x, what)
+    if x is text then return chars(x)
+    if x is list then return x
+    fail "{what} works on text or lists, but got {type(x)}."
+
+hidden fn same_kind(x, out) => if x is text then join(out) else out
+
+
+-- ── distance ────────────────────────────────────────────
+
+--- How many single-letter edits turn one text into another: levenshtein("kitten", "sitting") is 3
+fn levenshtein(a, b)
+    let left = pieces(a, "levenshtein")
+    let right = pieces(b, "levenshtein")
+    var previous = [n for n in 0..length(right)]
+    for i, x in left
+        var current = [i + 1]
+        for j, y in right
+            let cost = if x == y then 0 else 1
+            push(current, min(previous[j + 1] + 1, current[j] + 1, previous[j] + cost))
+        previous = current
+    previous[-1]
+
+--- How alike two texts are, from 0 (nothing in common) to 1 (identical): similarity("swan", "swam") is 0.75
+fn similarity(a, b)
+    let longest = max(length(pieces(a, "similarity")), length(pieces(b, "similarity")))
+    if longest == 0 then return 1
+    1 - levenshtein(a, b) / longest
+
+--- The candidate most like the word: closest("swna", ["swan", "duck"]) is "swan"
+fn closest(word, candidates)
+    some_text(word, "closest")
+    if not (candidates is list) or length(candidates) == 0
+        fail "closest needs a list of candidates to choose from."
+    var best = candidates[0]
+    var best_distance = levenshtein(word, best)
+    for c in candidates
+        let d = levenshtein(word, c)
+        if d < best_distance
+            best, best_distance = c, d
+    best
+
+
+-- ── what they share ─────────────────────────────────────
+
+--- The start two texts share: common_prefix("swan", "swim") is "sw"
+fn common_prefix(a, b)
+    some_text(a, "common_prefix")
+    some_text(b, "common_prefix")
+    var at = 0
+    while at < length(a) and at < length(b) and a[at] == b[at]
+        at += 1
+    if at == 0 then return ""
+    join([a[i] for i in 0..<at])
+
+--- The ending two texts share: common_suffix("gliding", "sliding") is "liding"
+fn common_suffix(a, b)
+    reverse(common_prefix(reverse(some_text(a, "common_suffix")), reverse(some_text(b, "common_suffix"))))
+
+--- A table where cell [i][j] holds the longest common subsequence length of the first i and j pieces.
+hidden fn lcs_table(left, right)
+    var table = [[0] * (length(right) + 1) for i in 0..length(left)]
+    for i, x in left
+        for j, y in right
+            table[i + 1][j + 1] = if x == y then table[i][j] + 1 else max(table[i][j + 1], table[i + 1][j])
+    table
+
+--- The longest run of characters that appears in both texts, in order (gaps allowed):
+--- longest_common_subsequence("abcde", "ace") is "ace"
+fn longest_common_subsequence(a, b)
+    let left = pieces(a, "longest_common_subsequence")
+    let right = pieces(b, "longest_common_subsequence")
+    let table = lcs_table(left, right)
+    var found = []
+    var i = length(left)
+    var j = length(right)
+    while i > 0 and j > 0
+        if left[i - 1] == right[j - 1]
+            insert(found, 0, left[i - 1])
+            i -= 1
+            j -= 1
+        elif table[i - 1][j] >= table[i][j - 1]
+            i -= 1
+        else
+            j -= 1
+    same_kind(a, found)
+
+
+-- ── what changed ────────────────────────────────────────
+
+--- Lines up two lists of lines and says what happened to each: a list of {kind: "same" | "added" | "removed", line}.
+fn changes(old_lines, new_lines)
+    if not (old_lines is list) or not (new_lines is list)
+        fail "changes needs two lists of lines. For text, use lines(text) first, or try show."
+    let table = lcs_table(old_lines, new_lines)
+    var found = []
+    var i = length(old_lines)
+    var j = length(new_lines)
+    while i > 0 or j > 0
+        if i > 0 and j > 0 and old_lines[i - 1] == new_lines[j - 1]
+            insert(found, 0, {kind: "same", line: old_lines[i - 1]})
+            i -= 1
+            j -= 1
+        elif j > 0 and (i == 0 or table[i][j - 1] >= table[i - 1][j])
+            insert(found, 0, {kind: "added", line: new_lines[j - 1]})
+            j -= 1
+        else
+            insert(found, 0, {kind: "removed", line: old_lines[i - 1]})
+            i -= 1
+    found
+
+--- The differences between two texts, line by line.
+--- Unchanged lines start with two spaces, "- " marks a line that went and "+ " one that came.
+fn show(old_text, new_text)
+    let marks = {same: "  ", added: "+ ", removed: "- "}
+    changes(lines(some_text(old_text, "show")), lines(some_text(new_text, "show")))
+        |> map(c => marks[c.kind] + c.line)
+        |> join("\n")
+
+--- Which words came and went between two texts:
+--- words_changed("the swan", "the duck") is {added: ["duck"], removed: ["swan"]}
+fn words_changed(a, b)
+    let before = unique(words(some_text(a, "words_changed")))
+    let after = unique(words(some_text(b, "words_changed")))
+    {added: keep(after, w => w not in before), removed: keep(before, w => w not in after)}
+
+
+test "distance"
+    expect levenshtein("kitten", "sitting") == 3
+    expect levenshtein("", "abc") == 3
+    expect levenshtein("swan", "swan") == 0
+    expect levenshtein([1, 2, 3], [1, 3]) == 1
+    expect similarity("swan", "swan") == 1
+    expect similarity("swan", "swam") == 0.75
+    expect similarity("", "") == 1
+    expect closest("swna", ["swan", "duck"]) == "swan"
+
+test "what they share"
+    expect common_prefix("swan", "swim") == "sw"
+    expect common_prefix("swan", "duck") == ""
+    expect common_suffix("gliding", "sliding") == "liding"
+    expect longest_common_subsequence("abcde", "ace") == "ace"
+    expect length(longest_common_subsequence("swan", "sawn")) == 3
+    expect length(longest_common_subsequence("ABCBDAB", "BDCABA")) == 4
+    expect longest_common_subsequence([1, 2, 3, 4], [2, 4, 5]) == [2, 4]
+
+test "what changed"
+    let found = changes(["a", "b", "c"], ["a", "c", "d"])
+    expect found == [{kind: "same", line: "a"}, {kind: "removed", line: "b"},
+                     {kind: "same", line: "c"}, {kind: "added", line: "d"}]
+    expect show("a\nb", "a\nc") == "  a\n- b\n+ c"
+    expect show("same", "same") == "  same"
+    expect words_changed("the swan glides", "the duck glides fast") == {added: ["duck", "fast"], removed: ["swan"]}

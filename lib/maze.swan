@@ -1,0 +1,138 @@
+--- Mazes: make a random one, draw it, and find the way through.
+--- A maze is a list of rows; each cell is 1 for wall or 0 for open floor.
+--- Bring it in with:  use maze   (then say maze.generate(21, 11))
+--- or pick a few:     use generate_cells, solve, show from maze
+
+use chance
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn odd_size(n, what)
+    if not (n is number) or floor(n) != n or n < 3 or n % 2 == 0
+        fail "{what} needs an odd whole number of 3 or more, but got {n}."
+
+hidden fn a_maze(cells, what)
+    if not (cells is list) or length(cells) == 0 or not (cells[0] is list)
+        fail "{what} needs a maze from generate_cells: a list of rows of 0s and 1s."
+    for row in cells
+        if not (row is list) or length(row) != length(cells[0])
+            fail "{what} needs every row of the maze to be the same length."
+    cells
+
+
+-- ── making mazes ────────────────────────────────────────
+
+--- A random maze as a grid of 1 (wall) and 0 (floor), width across and height down (both odd).
+--- The entrance is the top-left floor cell and the exit is the bottom-right one.
+fn generate_cells(width, height)
+    odd_size(width, "generate_cells")
+    odd_size(height, "generate_cells")
+    var cells = [[1] * width for y in 1..height]
+    cells[1][1] = 0
+    var trail = [[1, 1]]
+    while length(trail) > 0
+        let here = trail[-1]
+        var options = []
+        for d in [[2, 0], [-2, 0], [0, 2], [0, -2]]
+            let nx = here[0] + d[0]
+            let ny = here[1] + d[1]
+            if 0 < nx < width - 1 and 0 < ny < height - 1 and cells[ny][nx] == 1
+                push(options, [nx, ny])
+        if length(options) == 0
+            pop(trail)
+        else
+            let next = chance.pick(options)
+            cells[(here[1] + next[1]) // 2][(here[0] + next[0]) // 2] = 0
+            cells[next[1]][next[0]] = 0
+            push(trail, next)
+    cells
+
+--- A random maze drawn as text, ready to say.
+fn generate(width, height) => show(generate_cells(width, height))
+
+
+-- ── drawing and solving ─────────────────────────────────
+
+--- The maze as text: █ for walls and spaces for floor. Give it a path from solve to draw it with ·.
+fn show(cells, path = nothing)
+    a_maze(cells, "show")
+    var out = []
+    for y, row in cells
+        var line = ""
+        for x, c in row
+            if c == 1
+                line += "█"
+            elif path != nothing and [x, y] in path
+                line += "·"
+            else
+                line += " "
+        push(out, line)
+    join(out, "\n")
+
+--- The shortest way from the top-left floor cell to the bottom-right one, as a list of [x, y] steps.
+--- Gives back nothing if there's no way through.
+fn solve(cells)
+    a_maze(cells, "solve")
+    let height = length(cells)
+    let width = length(cells[0])
+    let start = [1, 1]
+    let goal = [width - 2, height - 2]
+    if cells[1][1] == 1 or cells[height - 2][width - 2] == 1 then return nothing
+    var came_from = {}
+    came_from[key(start)] = nothing
+    var queue = [start]
+    var at = 0
+    while at < length(queue)
+        let here = queue[at]
+        at += 1
+        if here == goal then return walk_back(came_from, goal)
+        for d in [[1, 0], [-1, 0], [0, 1], [0, -1]]
+            let next = [here[0] + d[0], here[1] + d[1]]
+            if 0 <= next[1] < height and 0 <= next[0] < width and cells[next[1]][next[0]] == 0 and not has(came_from, key(next))
+                came_from[key(next)] = here
+                push(queue, next)
+    nothing
+
+hidden fn key(p) => "{p[0]},{p[1]}"
+
+hidden fn walk_back(came_from, goal)
+    var path = []
+    var here = goal
+    while here != nothing
+        insert(path, 0, here)
+        here = came_from[key(here)]
+    path
+
+--- How many steps the shortest way through takes, or nothing if there isn't one.
+fn path_length(cells)
+    let path = solve(cells)
+    if path == nothing then return nothing
+    length(path) - 1
+
+
+test "generated mazes have the right shape"
+    let cells = generate_cells(11, 7)
+    expect length(cells) == 7
+    expect all(cells, row => length(row) == 11)
+    expect all(cells[0], c => c == 1) and all(cells[-1], c => c == 1)
+    expect all(cells, row => row[0] == 1 and row[-1] == 1)
+    expect cells[1][1] == 0 and cells[5][9] == 0
+
+test "generated mazes can be solved"
+    let cells = generate_cells(15, 9)
+    let path = solve(cells)
+    expect path != nothing
+    expect path[0] == [1, 1] and path[-1] == [13, 7]
+    expect path_length(cells) == length(path) - 1
+    expect all(path, p => cells[p[1]][p[0]] == 0)
+
+test "drawing and solving a known maze"
+    let cells = [[1, 1, 1, 1, 1], [1, 0, 0, 0, 1], [1, 1, 1, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 1]]
+    expect solve(cells) == [[1, 1], [2, 1], [3, 1], [3, 2], [3, 3]]
+    expect path_length(cells) == 4
+    expect lines(show(cells))[1] == "█   █"
+    expect lines(show(cells, solve(cells)))[1] == "█···█"
+    expect length(lines(generate(7, 5))) == 5 and length(lines(generate(7, 5))[0]) == 7
+    expect solve([[1, 1, 1], [1, 0, 1], [1, 1, 1]]) == [[1, 1]]
+    expect solve([[1, 1, 1, 1, 1], [1, 0, 1, 0, 1], [1, 1, 1, 1, 1]]) == nothing

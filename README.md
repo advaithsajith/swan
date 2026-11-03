@@ -305,7 +305,7 @@ Any tool can be written with dots: `length(name)` is the same as `name.length()`
 
 ## Libraries
 
-Libraries are extra tools, written in Swan itself, that you bring in with `use`:
+Libraries are extra tools, written in Swan itself, that you bring in with `use`. There are 57 of them, from fractions and JSON to a maze generator:
 
 ```swan
 use maths                          -- then maths.gcd(12, 18)
@@ -324,15 +324,97 @@ ducks  │█████████████ 15
 herons │███ 3
 ```
 
-| Library | Tools |
-|---|---|
-| **maths** | `gcd` `lcm` `is_even` `is_odd` `is_prime` `primes` `factors` `factorial` `fibonacci` `digits` `clamp` `lerp` `percent` `median` `mode` `spread` `deviation` |
-| **draw** | `box` `table` `bars` `progress` `pad` `divider` |
-| **lists** | `take` `take_last` `rest` `chunk` `windows` `flatten` `compact` `without` `rotate` `interleave` `transpose` `index_of` `tally` `group_by` `partition` `max_by` `min_by` `sum_by` |
-| **prose** | `capitalize` `title_case` `is_palindrome` `count_of` `vowels` `is_blank` `acronym` `shorten` `wrap` `indent` `slug` `pig_latin` `caesar` `plural` `ordinal` `with_commas` `pad_zeros` |
-| **chance** | `coin` `dice` `roll` `maybe` `between` `shuffle` `pick` `pick_many` `weighted` `code` |
-| **clock** | `date` `timestamp` `date_text` `time_text` `weekday` `month_name` `is_leap_year` `days_in_month` `days_between` `duration` `Stopwatch` and the constants `second` `minute` `hour` `day` `week` |
-| **units** | `temperature` `distance` `weight` `speed` `file_size` |
+**Numbers and maths**
+
+| Library | What it's for | Tools |
+|---|---|---|
+| **maths** | Number helpers: whole-number tricks, primes, and simple statistics | `gcd` `lcm` `is_even` `is_odd` `is_prime` `primes` `factors` `factorial` `fibonacci` `digits` `clamp` `lerp` `percent` `median` `mode` `spread` `deviation` |
+| **trig** | Angles and triangles: sin, cos and tan, their opposites, and turning degrees into radians | `sin` `cos` `tan` `degrees` `radians` `atan` `atan2` `asin` `acos` `hypot` |
+| **geometry** | Shapes and space: points, areas, volumes and triangles | `Point` `circle_area` `circle_circumference` `rectangle_area` `triangle_area` `heron` `is_right_triangle` `polygon_area` `sphere_volume` `cube_volume` `cylinder_volume` `cone_volume` |
+| **fractions** | Fractions that stay exact: Fraction(1, 2).add(Fraction(1, 3)) is 5/6, not 0.8333 | `simplify` `Fraction` `fraction_of` |
+| **vectors** | Vectors: arrows with a length and a direction, for movement, forces and games | `Vec` `distance` `lerp` |
+| **matrix** | Matrices: grids of numbers you can add, multiply and flip, written as lists of lists | `make` `identity` `size` `add` `subtract` `scale` `multiply` `transpose` `determinant` `show` |
+| **stats** | Statistics beyond the average: spread, percentiles, correlation and summaries | `variance` `deviation` `percentile` `quartiles` `iqr` `z_scores` `correlation` `covariance` `moving_average` `normalize` `summary` |
+| **sequences** | Famous number patterns: triangular and square numbers, Collatz, Pascal's triangle and more | `triangular` `squares` `cubes` `collatz` `collatz_steps` `pascal` `arithmetic` `geometric` `is_perfect` `perfect_numbers` `happy` `look_and_say` |
+| **combos** | Counting and listing the ways things can be arranged: combinations, permutations and more | `choose` `permutations_count` `permutations` `combinations` `powerset` `product` |
+| **solve** | Solving equations: straight lines, quadratics, pairs of equations and anything by bisection | `linear` `quadratic` `proportion` `simultaneous` `root` |
+| **physics** | School physics: speed, forces, energy, falling things and Ohm's law | `g` `speed_of_light` `speed` `distance` `time_taken` `acceleration` `momentum` `force` `weight` `kinetic_energy` `potential_energy` `density` `fall_time` `fall_speed` `ohms_law` |
+| **roman** | Roman numerals: turning numbers into MMXXVI and back again | `to_roman` `from_roman` `is_roman` |
+| **bases** | Numbers in other bases: binary, hex, anything from base 2 to 36, and bit-by-bit logic | `to_base` `from_base` `to_binary` `from_binary` `to_hex` `from_hex` `bits` `bit_and` `bit_or` `bit_xor` |
+| **finance** | Interest, loans and savings: how money grows (or shrinks) over time | `compound` `simple_interest` `years_to_double` `inflation_adjust` `loan_payment` `total_interest` `payoff_months` `future_value` |
+| **money** | Money: showing amounts nicely, splitting bills, tips, tax, discounts and giving change | `format` `parse` `round_cents` `split_bill` `tip` `with_tax` `discount` `change_for` |
+
+**Text**
+
+| Library | What it's for | Tools |
+|---|---|---|
+| **prose** | Playing with text: capital letters, counting, wrapping, slugs, ciphers and plurals | `capitalize` `title_case` `is_palindrome` `count_of` `vowels` `is_blank` `acronym` `shorten` `wrap` `indent` `slug` `pig_latin` `caesar` `plural` `ordinal` `with_commas` `pad_zeros` |
+| **spell** | Numbers and times in words: spell.number(42) is "forty-two" and spell.time(3, 30) is "half past three" | `number` `ordinal_words` `time` |
+| **wordplay** | Word games: anagrams, pangrams, Scrabble scores, rhymes and letter counting | `alphabetical` `is_anagram` `anagrams` `is_pangram` `is_isogram` `letter_frequency` `scrabble_score` `hidden_word` `longest_word` `word_lengths` `rhymes_with` |
+| **cipher** | Secret codes: rot13, atbash, the Vigenère cipher, rail fences and letter substitution | `rot13` `atbash` `reverse_words` `vigenere` `unvigenere` `rail_fence` `unrail_fence` `substitution` `unsubstitution` |
+| **morse** | Morse code: dots and dashes, there and back again | `table` `encode` `decode` `is_morse` `sound` |
+| **diff** | Comparing text: how different two things are, what they share, and what changed between them | `levenshtein` `similarity` `closest` `common_prefix` `common_suffix` `longest_common_subsequence` `changes` `show` `words_changed` |
+| **template** | Filling in the blanks: text with {name} placeholders, filled from a map | `placeholders` `missing` `fill` `fill_all` `fill_each` |
+| **markdown** | Writing Markdown: headings, lists, tables, links and code, ready to save as a .md file | `heading` `quote` `link` `bold` `italic` `code` `code_block` `bullets` `numbered` `checklist` `table` `to_text` |
+| **emoji** | Emoji by name, ratings made of stars, and faces for moods | `of` `names` `has_emoji` `replace_names` `any_emoji` `faces` `rate` `mood` |
+
+**Lists and data**
+
+| Library | What it's for | Tools |
+|---|---|---|
+| **lists** | Extra tools for lists: taking pieces, reshaping, grouping and counting | `take` `take_last` `rest` `chunk` `windows` `flatten` `compact` `without` `rotate` `interleave` `transpose` `index_of` `tally` `group_by` `partition` `max_by` `min_by` `sum_by` |
+| **sets** | Sets: lists treated as collections of different things, with union, intersection and difference | `to_set` `equal` `union` `intersection` `difference` `symmetric_difference` `is_subset` `is_superset` `is_disjoint` |
+| **search** | Finding things in lists: where an item is, which items match, and the nearest number | `linear_search` `binary_search` `insertion_point` `nearest` `find_all` `find_index` `first_where` `last_where` `contains_all` `is_sorted` |
+| **sorting** | Sorting, done by hand: the classic ways to put a list in order, written out so you can read them | `bubble_sort` `selection_sort` `insertion_sort` `merge_sort` `quick_sort` `counting_sort` `sort_steps` `is_sorted` `describe` |
+| **collections** | Ways to hold things: a Stack (last in, first out), a Queue (first in, first out), a Deque that | `Stack` `Queue` `Deque` `PriorityQueue` `Counter` |
+| **graph** | Graphs: things joined by links, like towns and roads or people and friendships | `make` `add_edge` `nodes` `neighbours` `degree` `bfs` `dfs` `shortest_path` `components` `is_connected` `has_cycle` |
+| **grid** | Grids: boards, maps and pixel pictures as rows of cells. A grid is a list of rows, and each row | `make` `from_text` `width` `height` `in_bounds` `get` `set` `neighbours` `cells` `locate` `count_of` `map_cells` `rows_text` `flip` `mirror` `rotate` `fill_region` |
+| **csv** | Reading and writing CSV, the comma-separated text that spreadsheets save | `rows` `parse` `column` `write_rows` `write` |
+| **json** | JSON: the text format most programs and websites use to pass values around | `to_json` `from_json` `is_json` |
+
+**Time, measures and the world**
+
+| Library | What it's for | Tools |
+|---|---|---|
+| **clock** | Dates and times: what day it is, taking a time apart, and saying how long things take | `second` `minute` `hour` `day` `week` `date` `timestamp` `date_text` `time_text` `weekday` `month_name` `is_leap_year` `days_in_month` `days_between` `duration` `Stopwatch` |
+| **calendar** | Calendars: a month drawn as text, the weeks of a month, countdowns and the date of Easter | `days_of_week` `weeks` `month` `next_weekday` `countdown` `easter` |
+| **birthday** | Birthdays: how old someone is, when the next one is, star signs, zodiac animals and birthstones | `age` `days_alive` `next_birthday` `days_until_birthday` `is_birthday_today` `weekday_born` `star_sign` `chinese_zodiac` `birthstone` `generation` |
+| **units** | Changing between units: temperatures, distances, weights, speeds and file sizes | `temperature` `distance` `weight` `speed` `file_size` |
+| **planets** | The solar system: facts about the planets, your weight and age on each, and how far away they are | `names` `info` `gravity` `weight_on` `age_on` `distance_from_earth` `travel_time` `order_from_sun` `biggest` `describe` |
+| **music** | Music: note frequencies, MIDI numbers, scales, chords, intervals and tempo | `midi` `note_name` `frequency` `transpose` `interval_name` `scale` `chord` `tempo_to_seconds` `beats_duration` |
+| **colors** | Colours as hex codes like "#1a2b3c": take them apart, mix, lighten, darken and check contrast | `rgb` `hex` `to_hsl` `from_hsl` `mix` `lighten` `darken` `invert` `gradient` `brightness` `is_dark` `contrast` `named` `names` `show` |
+
+**Pictures made of text**
+
+| Library | What it's for | Tools |
+|---|---|---|
+| **draw** | Text pictures for the terminal: boxes, tables, bar charts and progress bars | `pad` `divider` `box` `table` `bars` `progress` |
+| **plot** | More text charts: sparklines, histograms, line charts, scatter plots and pie legends | `sparkline` `histogram` `line` `scatter` `pie` |
+| **canvas** | A text canvas to draw on: points, lines, rectangles, circles and words, then show() it | `Canvas` |
+| **maze** | Mazes: make a random one, draw it, and find the way through | `generate_cells` `generate` `show` `solve` `path_length` |
+| **life** | Conway's Game of Life: cells on a grid that live, die and are born by simple rules | `make` `from_text` `to_text` `patterns` `place` `neighbours` `step` `run` `population` `is_still` |
+
+**Games and chance**
+
+| Library | What it's for | Tools |
+|---|---|---|
+| **chance** | Games of chance: coins, dice, shuffling, and picking things at random | `coin` `dice` `roll` `maybe` `between` `shuffle` `pick` `pick_many` `weighted` `code` |
+| **cards** | Playing cards: a Card, a Deck to shuffle and deal from, and the values of hands | `suits` `ranks` `Card` `full_deck` `Deck` `hand_text` `blackjack_value` `is_flush` `is_straight` `hand_kind` |
+| **tictactoe** | Noughts and crosses: a Board to play on, a text picture of it, and a computer player | `other` `Board` `play_text` `best_move` |
+| **hangman** | Hangman: guess a word one letter at a time before the picture is finished | `word_list` `random_word` `Game` |
+| **wordle** | Wordle: score a five-letter guess against the answer with green, yellow and grey | `answer_list` `random_answer` `is_valid` `score` `show` `show_text` `Game` |
+| **quiz** | Quizzes: add questions with answers, check answers, run the quiz out loud, and grade the score | `Quiz` `grade` `from_list` |
+
+**Building programs**
+
+| Library | What it's for | Tools |
+|---|---|---|
+| **validate** | Checking that text and numbers look right: emails, web addresses, dates, passwords and more | `is_email` `is_number_text` `is_whole_text` `is_url` `is_phone` `is_date_text` `is_time_text` `is_hex_color` `is_username` `password_strength` `is_between` `is_one_of` `require` `problems` |
+| **memo** | Remembering answers so slow functions only work once per question (memoisation), | `remember` `Memo` `once` `Counted` |
+| **log** | Keeping a log of what a program does, with a time, a level and a name on every line | `levels` `format` `Logger` |
+| **machine** | State machines: a thing that is always in exactly one state, and moves between states on events | `Machine` `traffic_light` `door` |
+| **prompt** | Asking the person running the program for things: a line of text, a number, yes or no, | `parse_yes_no` `parse_choice` `menu_text` `line` `number_from` `yes_no` `confirm` `choose` `pause` |
+| **todo** | A to-do list: add tasks, tick them off, see what's left, and save the list to a file | `to_line` `from_line` `List` |
 
 `help(maths)` lists what a library has. If something goes wrong inside a library, the error points
 at the line in *your* code that called it. Libraries live in the [lib](lib) folder; each one has its
@@ -369,6 +451,8 @@ gets you the Swan way to say it. Typos get "Did you mean …?"
 | [fizzbuzz.swan](examples/fizzbuzz.swan) | the classic, Swan-style |
 | [libraries.swan](examples/libraries.swan) | `use`, with the maths and draw libraries |
 | [toolbox.swan](examples/toolbox.swan) | the lists, prose, chance, clock and units libraries |
+| [arcade.swan](examples/arcade.swan) | tic-tac-toe, hangman, wordle, cards and a maze, all from libraries |
+| [notebook.swan](examples/notebook.swan) | a data report with csv, json, stats, plot, markdown and calendar |
 
 ---
 

@@ -1,0 +1,142 @@
+--- A to-do list: add tasks, tick them off, see what's left, and save the list to a file.
+--- Bring it in with:  use todo   (then let jobs = todo.List("Homework"))
+--- or pick a few:     use List from todo
+
+use clock
+use draw
+
+
+hidden fn priorities() => ["high", "normal", "low"]
+
+--- A task as one line of text for a file: "x|high|2026-11-05|Buy bread" (x means done, - means not).
+fn to_line(task)
+    if not (task is map) then fail "to_line needs a task map, like the ones add gives back."
+    let due = if task.due == nothing then "" else clock.date_text(task.due)
+    "{if task.done then "x" else "-"}|{task.priority}|{due}|{task.text}"
+
+--- A task back from a line that to_line made.
+fn from_line(line)
+    if not (line is text) then fail "from_line needs a line of text."
+    let parts = split(line, "|")
+    if length(parts) < 4 then fail "from_line can't read {line}. It wants: x|priority|date|text"
+    var due = nothing
+    if parts[2] != ""
+        let bits = map(split(parts[2], "-"), number)
+        due = clock.timestamp(bits[0], bits[1], bits[2])
+    {text: join(parts[3..-1], "|"), done: parts[0] == "x", priority: parts[1], due: due}
+
+--- A to-do list with a title. Tasks are numbered from 1 in the order you added them.
+shape List(title = "To do", hidden tasks = [])
+    --- Adds a task. due is a time like clock.timestamp(2026, 11, 5); priority is "high", "normal" or "low".
+    fn add(what, due = nothing, priority = "normal")
+        if not (what is text) or trim(what) == "" then fail "add needs some text for the task."
+        if priority not in priorities() then fail "priority should be high, normal or low, but got {priority}."
+        if due != nothing and not (due is number) then fail "due should be a time in seconds, like clock.timestamp gives."
+        let task = {text: trim(what), done: false, priority: priority, due: due}
+        push(tasks, task)
+        task
+
+    --- Ticks off task number n.
+    fn done(n)
+        task_number(n).done = true
+        me
+
+    --- Un-ticks task number n.
+    fn undo(n)
+        task_number(n).done = false
+        me
+
+    --- Takes task number n off the list for good.
+    fn remove(n)
+        task_number(n)
+        tasks = [t for i, t in tasks if i != n - 1]
+        me
+
+    --- The tasks still to do.
+    fn pending() => keep(tasks, t => not t.done)
+
+    --- The tasks already done.
+    fn finished() => keep(tasks, t => t.done)
+
+    --- Every task, most urgent first.
+    fn by_priority() => sort(tasks, by: t => index_of(priorities(), t.priority))
+
+    --- The tasks not done whose due date has passed (before today, or before the time given).
+    fn overdue(today = nothing)
+        let at = if today == nothing then now() else today
+        keep(pending(), t => t.due != nothing and t.due < at)
+
+    --- Words like "2 of 5 done", with a little progress bar.
+    fn count_text()
+        if length(tasks) == 0 then return "Nothing to do!"
+        "{length(finished())} of {length(tasks)} done " + draw.progress(length(finished()), length(tasks), width: 10)
+
+    --- The whole list as text, one numbered line per task.
+    fn show()
+        var out = [title, "─" * length(title)]
+        for i, t in tasks
+            var extras = []
+            if t.priority != "normal" then push(extras, t.priority)
+            if t.due != nothing then push(extras, "due {clock.date_text(t.due)}")
+            let note = if length(extras) > 0 then " ({join(extras, ", ")})" else ""
+            push(out, "[{if t.done then "x" else " "}] {i + 1}. {t.text}{note}")
+        if length(tasks) == 0 then push(out, "(nothing yet)")
+        join(out, "\n")
+
+    --- Writes the list to a file, one task per line.
+    fn save(path)
+        write_file(path, join([title] + map(tasks, to_line), "\n"))
+        me
+
+    --- Reads a list back from a file that save wrote, replacing what's here.
+    fn load(path)
+        let rows = lines(read_file(path))
+        if length(rows) == 0 then fail "The file {path} is empty."
+        title = rows[0]
+        tasks = map(keep(rows[1..-1], r => trim(r) != ""), from_line)
+        me
+
+    hidden fn task_number(n)
+        if not (n is number) or floor(n) != n or not (1 <= n <= length(tasks))
+            fail "There's no task number {n}. The list has {length(tasks)} task{if length(tasks) == 1 then "" else "s"}."
+        tasks[n - 1]
+
+hidden fn index_of(xs, item)
+    for i, x in xs
+        if x == item then return i
+    length(xs)
+
+
+test "adding and ticking off"
+    let jobs = List("Homework")
+    jobs.add("Read chapter 3")
+    jobs.add("Maths sheet", priority: "high", due: clock.timestamp(2026, 11, 5))
+    jobs.add("Tidy desk", priority: "low")
+    expect length(jobs.pending()) == 3
+    jobs.done(2)
+    expect length(jobs.finished()) == 1 and jobs.finished()[0].text == "Maths sheet"
+    expect jobs.count_text() == "1 of 3 done [███░░░░░░░] 33%"
+    jobs.undo(2)
+    expect length(jobs.finished()) == 0
+    jobs.remove(1)
+    expect map(jobs.pending(), t => t.text) == ["Maths sheet", "Tidy desk"]
+    expect map(jobs.by_priority(), t => t.priority) == ["high", "low"]
+
+test "showing the list"
+    let jobs = List()
+    expect jobs.show() == "To do\n─────\n(nothing yet)"
+    expect jobs.count_text() == "Nothing to do!"
+    jobs.add("Buy bread", priority: "high", due: clock.timestamp(2026, 11, 5))
+    jobs.add("Call Odette")
+    jobs.done(2)
+    expect lines(jobs.show())[2] == "[ ] 1. Buy bread (high, due 2026-11-05)"
+    expect lines(jobs.show())[3] == "[x] 2. Call Odette"
+    expect length(jobs.overdue(today: clock.timestamp(2026, 11, 6))) == 1
+    expect length(jobs.overdue(today: clock.timestamp(2026, 11, 4))) == 0
+
+test "lines for files"
+    let task = {text: "Buy bread", done: false, priority: "high", due: clock.timestamp(2026, 11, 5)}
+    expect to_line(task) == "-|high|2026-11-05|Buy bread"
+    expect from_line("x|normal||Call Odette") == {text: "Call Odette", done: true, priority: "normal", due: nothing}
+    expect from_line(to_line(task)) == task
+    expect from_line("-|low||a|b").text == "a|b"

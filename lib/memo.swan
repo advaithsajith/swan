@@ -1,0 +1,116 @@
+--- Remembering answers so slow functions only work once per question (memoisation),
+--- plus tools that run something once or count how often a function is called.
+--- Bring it in with:  use memo   (then let fast = memo.remember(slow))
+--- or pick a few:     use remember, once from memo
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_function(f, what)
+    if not (f is function)
+        fail "{what} needs a function to wrap, but got {type(f)}."
+    f
+
+
+-- ── remembering answers ─────────────────────────────────
+
+--- A copy of the function that remembers every answer, so asking the same question twice is instant.
+--- The arguments are the question, so they should be plain values: numbers, text, lists or maps.
+fn remember(f)
+    a_function(f, "remember")
+    var answers = {}
+    fn remembering(...args)
+        let key = text(args)
+        if has(answers, key) then return answers[key]
+        let answer = f(...args)
+        answers[key] = answer
+        answer
+    remembering
+
+--- Like remember, but as a shape you can look inside: how many hits and misses, and a way to clear it.
+--- let fib = Memo(slow_fib), then fib.call(30), fib.hits, fib.clear()
+shape Memo(f, hits = 0, misses = 0, hidden answers = {})
+    --- Calls the function, or gives back the remembered answer for these arguments.
+    fn call(...args)
+        let key = text(args)
+        if has(answers, key)
+            hits += 1
+            return answers[key]
+        misses += 1
+        let answer = f(...args)
+        answers[key] = answer
+        answer
+
+    --- How many different questions are remembered.
+    fn size() => length(keys(answers))
+
+    --- Forgets every answer and resets the counts.
+    fn clear()
+        answers = {}
+        hits, misses = 0, 0
+
+
+-- ── once and counting ───────────────────────────────────
+
+--- A function that runs f the first time it's called and gives back that same answer ever after.
+fn once(f)
+    a_function(f, "once")
+    var done = false
+    var kept = nothing
+    fn only_once(...args)
+        if not done
+            kept = f(...args)
+            done = true
+        kept
+    only_once
+
+--- Wraps a function so you can see how often it's been called: let add = Counted(plus), add.call(1, 2), add.calls
+shape Counted(f, calls = 0)
+    --- Calls the function and counts one more call.
+    fn call(...args)
+        calls += 1
+        f(...args)
+
+    --- Starts counting from zero again.
+    fn reset()
+        calls = 0
+
+
+test "remember makes a slow function fast"
+    var fib = nothing
+    fib = remember(n => if n < 2 then n else fib(n - 1) + fib(n - 2))
+    expect fib(40) == 102334155
+    expect fib(40) == 102334155
+    var work = 0
+    fn slow_square(n)
+        work += 1
+        n * n
+    let square = remember(slow_square)
+    expect square(9) == 81 and square(9) == 81 and square(3) == 9
+    expect work == 2
+
+test "Memo keeps score"
+    var calls = 0
+    fn square(n)
+        calls += 1
+        n * n
+    let m = Memo(square)
+    expect m.call(4) == 16 and m.call(4) == 16 and m.call(5) == 25
+    expect calls == 2 and m.hits == 1 and m.misses == 2 and m.size() == 2
+    m.clear()
+    expect m.call(4) == 16 and calls == 3 and m.hits == 0
+
+test "once and Counted"
+    var runs = 0
+    fn setup(name)
+        runs += 1
+        "ready, {name}"
+    let start = once(setup)
+    expect start("Odette") == "ready, Odette"
+    expect start("Odile") == "ready, Odette"
+    expect runs == 1
+    let add = Counted((a, b) => a + b)
+    expect add.call(1, 2) == 3 and add.call(2, 2) == 4
+    expect add.calls == 2
+    add.reset()
+    expect add.calls == 0

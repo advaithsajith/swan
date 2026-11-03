@@ -1,0 +1,124 @@
+--- Wordle: score a five-letter guess against the answer with green, yellow and grey.
+--- Bring it in with:  use wordle   (then wordle.show("snake", "swans"))
+--- or pick a few:     use score, Game from wordle
+
+use chance
+
+
+--- Answers the game can pick from.
+fn answer_list() => ["swans", "lakes", "glide", "dance", "plume", "royal", "crown", "grace", "pearl", "water",
+                     "reeds", "moons", "spell", "flock", "quill", "waltz", "stage", "magic", "misty", "prince"]
+
+--- A random answer from the built-in list.
+fn random_answer() => chance.pick(answer_list())
+
+--- true if the guess is made only of letters and is the right length.
+fn is_valid(guess, size = 5)
+    guess is text and length(guess) == size and all(chars(guess), c => upper(c) != lower(c))
+
+hidden fn same_size(guess, answer, what)
+    if not (guess is text) or not (answer is text)
+        fail "{what} needs two words as text."
+    if length(guess) != length(answer)
+        fail "{what} needs words of the same length, but got \"{guess}\" ({length(guess)}) and \"{answer}\" ({length(answer)})."
+
+--- A colour for each letter of the guess: "green" in the right place, "yellow" in the word elsewhere, "grey" not there.
+--- Repeated letters only earn as many yellows as the answer has spare: score("snake", "swans") has one yellow n.
+fn score(guess, answer)
+    same_size(guess, answer, "score")
+    let g = chars(lower(guess))
+    let a = chars(lower(answer))
+    var result = ["grey"] * length(g)
+    var spare = {}
+    for i, c in a
+        if g[i] == c
+            result[i] = "green"
+        else
+            spare[c] = get(spare, c, 0) + 1
+    for i, c in g
+        if result[i] != "green" and get(spare, c, 0) > 0
+            result[i] = "yellow"
+            spare[c] -= 1
+    result
+
+hidden fn squares(colours) => colours |> map(c => {green: "🟩", yellow: "🟨", grey: "⬜"}[c]) |> join
+
+--- The score as coloured squares: show("snake", "swans") is "🟩🟨🟩⬜⬜"
+fn show(guess, answer) => squares(score(guess, answer))
+
+--- The score as plain letters, G for green, Y for yellow and . for grey: show_text("snake", "swans") is "GYG.."
+fn show_text(guess, answer) => score(guess, answer) |> map(c => {green: "G", yellow: "Y", grey: "."}[c]) |> join
+
+
+--- One game against an answer, with a limited number of tries (6 unless you say otherwise).
+shape Game(answer = random_answer(), max_tries = 6, hidden guesses = [])
+    --- Makes a guess and gives back its colours. Fails if the guess isn't a real word shape or the game is over.
+    fn guess(word)
+        if is_over()
+            fail "The game is over. Start a new Game() to play again."
+        if not is_valid(word, length(answer))
+            fail "A guess should be {length(answer)} letters, but got {text(word)}."
+        let colours = score(word, answer)
+        push(guesses, [lower(word), colours])
+        colours
+
+    --- How many guesses have been made.
+    fn tries() => length(guesses)
+
+    --- true once a guess matched the answer.
+    fn is_won() => any(guesses, g => all(g[1], c => c == "green"))
+
+    --- true when the game is won or the tries are used up.
+    fn is_over() => is_won() or length(guesses) >= max_tries
+
+    --- Every guess so far with its squares: [["snake", "🟩🟨🟩⬜⬜"], …]
+    fn history() => [[g[0], squares(g[1])] for g in guesses]
+
+    --- The best colour seen for each letter tried, as a map: {c: "grey", a: "yellow", n: "green"}
+    fn keyboard()
+        let rank = {grey: 0, yellow: 1, green: 2}
+        var seen = {}
+        for g in guesses
+            for i, c in chars(g[0])
+                let colour = g[1][i]
+                if not has(seen, c) or rank[colour] > rank[seen[c]] then seen[c] = colour
+        seen
+
+    --- A summary like "3/6" once the game is won, or "X/6" if it was lost.
+    fn result() => (if is_won() then text(tries()) else "X") + "/{max_tries}"
+
+
+test "scoring"
+    expect score("crane", "swans") == ["grey", "grey", "green", "green", "grey"]
+    expect score("snake", "swans") == ["green", "yellow", "green", "grey", "grey"]
+    expect score("swans", "swans") == ["green"] * 5
+    expect score("eerie", "swans") == ["grey"] * 5
+    expect score("llama", "hello") == ["yellow", "yellow", "grey", "grey", "grey"]
+    expect score("hello", "llama") == ["grey", "grey", "yellow", "yellow", "grey"]
+    expect score("eerie", "swans") == ["grey"] * 5
+    expect score("sassy", "swans") == ["green", "yellow", "yellow", "grey", "grey"]
+    expect show("snake", "swans") == "🟩🟨🟩⬜⬜"
+    expect show_text("snake", "swans") == "GYG.."
+    expect is_valid("swans") and not is_valid("swan") and not is_valid("sw4ns")
+
+test "a game"
+    let game = Game("swans", max_tries: 3)
+    expect game.guess("snake") == ["green", "yellow", "green", "grey", "grey"]
+    expect game.tries() == 1 and not game.is_over()
+    expect game.keyboard() == {s: "green", n: "yellow", a: "green", k: "grey", e: "grey"}
+    game.guess("SWANS")
+    expect game.is_won() and game.is_over()
+    expect game.result() == "2/3"
+    expect game.history() == [["snake", "🟩🟨🟩⬜⬜"], ["swans", "🟩🟩🟩🟩🟩"]]
+
+test "a lost game and bad guesses"
+    let game = Game("swans", max_tries: 1)
+    game.guess("crane")
+    expect game.is_over() and game.result() == "X/1"
+    var problem = ""
+    try
+        Game("swans").guess("swan")
+    otherwise p
+        problem = text(p)
+    expect "5 letters" in problem
+    expect random_answer() in answer_list()

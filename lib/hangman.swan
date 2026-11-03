@@ -1,0 +1,114 @@
+--- Hangman: guess a word one letter at a time before the picture is finished.
+--- Bring it in with:  use hangman   (then let game = hangman.Game("swan"))
+--- or pick a few:     use Game, random_word from hangman
+
+use chance
+
+
+--- Words the game can pick from when you don't give it one.
+fn word_list() => ["swan", "lake", "ballet", "feather", "cygnet", "glide", "ripple", "reeds", "mirror", "princess",
+                   "sorcerer", "moonlight", "wings", "dance", "castle"]
+
+--- A random word, from your list or the built-in one.
+fn random_word(from_list = nothing)
+    let options = from_list ?? word_list()
+    if not (options is list) or length(options) == 0
+        fail "random_word needs a list with at least one word in it."
+    chance.pick(options)
+
+hidden fn stages() => [
+    "  ┌───┐\n  │   │\n      │\n      │\n      │\n  ═════",
+    "  ┌───┐\n  │   │\n  O   │\n      │\n      │\n  ═════",
+    "  ┌───┐\n  │   │\n  O   │\n  │   │\n      │\n  ═════",
+    "  ┌───┐\n  │   │\n  O   │\n /│   │\n      │\n  ═════",
+    "  ┌───┐\n  │   │\n  O   │\n /│\\  │\n      │\n  ═════",
+    "  ┌───┐\n  │   │\n  O   │\n /│\\  │\n /    │\n  ═════",
+    "  ┌───┐\n  │   │\n  O   │\n /│\\  │\n / \\  │\n  ═════",
+]
+
+
+--- One game. The word is hidden; guess letters with guess("a"). You start with 6 lives.
+shape Game(hidden word = random_word(), lives = 6, hidden tried = [], hidden misses = 0)
+    --- Guesses a letter. Gives back "hit", "miss", "repeat", "won" or "lost".
+    fn guess(letter)
+        if not (letter is text) or length(letter) != 1 or upper(letter) == lower(letter)
+            fail "guess needs a single letter, but got {text(letter)}."
+        if is_over()
+            fail "The game is over. Start a new Game() to play again."
+        let l = lower(letter)
+        if l in tried then return "repeat"
+        push(tried, l)
+        if l in lower(word)
+            return if is_won() then "won" else "hit"
+        lives -= 1
+        misses += 1
+        if lives == 0 then return "lost"
+        "miss"
+
+    --- The word with unguessed letters hidden: "s _ a _"
+    fn masked() => chars(word) |> map(c => if lower(c) in tried then c else "_") |> join(" ")
+
+    --- The letters tried so far, in order.
+    fn guessed() => copy(tried)
+
+    --- How many wrong guesses are left.
+    fn lives_left() => lives
+
+    --- true once every letter has been found.
+    fn is_won() => all(chars(lower(word)), c => c in tried)
+
+    --- true when the game is won or the lives are gone.
+    fn is_over() => is_won() or lives <= 0
+
+    --- The answer. Only for after the game, or for cheating.
+    fn reveal() => word
+
+    --- The gallows picture for how many wrong guesses there have been (7 stages, finished when the game is lost).
+    fn picture()
+        if lives <= 0 then return stages()[6]
+        stages()[min(misses, 6)]
+
+    --- A one-line summary: the masked word, the lives and the letters tried.
+    fn status()
+        if is_won() then return "You won! The word was {word}."
+        if lives <= 0 then return "You lost. The word was {word}."
+        "{masked()}   lives: {lives}   tried: {join(tried, " ")}"
+
+
+test "a game that's won"
+    let game = Game("swan")
+    expect game.masked() == "_ _ _ _"
+    expect game.guess("s") == "hit" and game.guess("s") == "repeat"
+    expect game.guess("z") == "miss" and game.lives_left() == 5
+    expect game.masked() == "s _ _ _"
+    expect game.status() == "s _ _ _   lives: 5   tried: s z"
+    game.guess("w")
+    game.guess("a")
+    expect game.guess("N") == "won"
+    expect game.is_won() and game.is_over()
+    expect game.status() == "You won! The word was swan."
+
+test "a game that's lost"
+    var game = Game("lake", lives: 2)
+    expect game.guess("x") == "miss"
+    expect game.picture() == stages()[1]
+    expect game.guess("y") == "lost"
+    expect game.is_over() and not game.is_won()
+    expect game.reveal() == "lake"
+    var problem = ""
+    try
+        game.guess("l")
+    otherwise p
+        problem = text(p)
+    expect "over" in problem
+
+test "random words and bad guesses"
+    expect random_word() in word_list()
+    expect random_word(["reeds"]) == "reeds"
+    var problem = ""
+    try
+        Game("swan").guess("ab")
+    otherwise p
+        problem = text(p)
+    expect "single letter" in problem
+    expect length(stages()) == 7

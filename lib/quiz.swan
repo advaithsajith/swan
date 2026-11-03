@@ -1,0 +1,114 @@
+--- Quizzes: add questions with answers, check answers, run the quiz out loud, and grade the score.
+--- Bring it in with:  use quiz   (then let q = quiz.Quiz("Capitals"))
+--- or pick a few:     use Quiz, grade from quiz
+
+use draw
+
+
+--- A quiz with a title. Add questions, then check answers one at a time or ask_all() out loud.
+--- A multiple-choice question gets a list of options; its answer is the right option's text or letter.
+shape Quiz(title = "Quiz", hidden questions = [], hidden right = [])
+    --- Adds a question. For multiple choice, give the options: add("Capital of France?", "Paris", ["Rome", "Paris"])
+    fn add(question, answer, options = nothing)
+        if options != nothing and (not (options is list) or length(options) < 2)
+            fail "A multiple-choice question needs a list of at least two options."
+        push(questions, {question: text(question), answer: text(answer), options: options})
+        me
+
+    --- How many questions there are.
+    fn total() => length(questions)
+
+    --- How many were answered right so far.
+    fn score() => count(right, r => r)
+
+    --- true if this answer is right for question number index (from 0). Capitals and spaces don't matter.
+    --- For multiple choice, the letter (a, b, c…) or the option's text both count.
+    fn check(index, answer)
+        if not (index is number) or not (0 <= index < length(questions))
+            fail "There's no question {index}. The quiz has {length(questions)} (numbered from 0)."
+        let q = questions[index]
+        let given = lower(trim(text(answer)))
+        var ok = given == lower(q.answer)
+        if q.options != nothing
+            let letters = "abcdefghij"
+            for i, option in q.options
+                if lower(text(option)) == lower(q.answer) and (given == letters[i] or given == lower(text(option)))
+                    ok = true
+        remember(index, ok)
+        ok
+
+    --- Asks every question out loud and gives back the score.
+    fn ask_all()
+        right = []
+        say "── {title} ──"
+        for i, q in questions
+            say "{i + 1}. {q.question}"
+            if q.options != nothing
+                for k, option in q.options
+                    say "   {"abcdefghij"[k]}) {option}"
+            if check(i, ask("> "))
+                say "   ✓ right"
+            else
+                say "   ✗ the answer was {q.answer}"
+        say report()
+        score()
+
+    --- Each question with whether it was answered right (nothing if it hasn't been answered yet).
+    fn results() => [{question: q.question, right: get(right, i, nothing)} for i, q in enumerate_questions()]
+
+    --- A short summary with a progress bar and a grade.
+    fn report()
+        let bar = if total() == 0 then "[]" else draw.progress(score(), total())
+        "{title}: {score()} of {total()} right {bar} grade {grade(score(), total())}"
+
+    hidden fn remember(index, ok)
+        while length(right) <= index
+            push(right, nothing)
+        right[index] = ok
+
+    hidden fn enumerate_questions() => questions
+
+
+--- A letter grade for a score out of a total: 90% and up is A, 80 B, 70 C, 60 D, below that F.
+fn grade(score, total)
+    if not (score is number) or not (total is number) or total <= 0
+        fail "grade needs a score and a total above 0, but got {score} out of {total}."
+    let percent = score / total * 100
+    if percent >= 90 then return "A"
+    if percent >= 80 then return "B"
+    if percent >= 70 then return "C"
+    if percent >= 60 then return "D"
+    "F"
+
+--- Builds a quiz from a list of maps with question, answer and (optionally) options.
+fn from_list(items, title = "Quiz")
+    if not (items is list)
+        fail "from_list needs a list of maps like \{question: ..., answer: ...\}."
+    var q = Quiz(title)
+    for item in items
+        if not (item is map) or not has(item, "question") or not has(item, "answer")
+            fail "Each question needs at least a question and an answer."
+        q.add(item.question, item.answer, get(item, "options", nothing))
+    q
+
+
+test "checking answers"
+    let q = Quiz("Birds")
+    q.add("What colour is a swan?", "white")
+    q.add("Which bird is biggest?", "swan", ["duck", "swan", "coot"])
+    expect q.total() == 2
+    expect not q.check(0, "black")
+    expect q.check(0, " White ")
+    expect not q.check(1, "a")
+    expect q.check(1, "b") and q.check(1, "Swan")
+    expect q.score() == 2
+    expect q.check(1, "duck") == false and q.score() == 1
+
+test "grades and reports"
+    expect grade(9, 10) == "A" and grade(8, 10) == "B" and grade(7, 10) == "C"
+    expect grade(6, 10) == "D" and grade(1, 10) == "F"
+    let q = from_list([{question: "2 + 2?", answer: 4}, {question: "3 + 3?", answer: 6}], title: "Sums")
+    q.check(0, "4")
+    q.check(1, "7")
+    expect q.report() == "Sums: 1 of 2 right [██████████░░░░░░░░░░] 50% grade F"
+    expect q.results() == [{question: "2 + 2?", right: true}, {question: "3 + 3?", right: false}]

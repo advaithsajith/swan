@@ -1,0 +1,91 @@
+--- Sets: lists treated as collections of different things, with union, intersection and difference.
+--- Every tool keeps the order items first appeared in, and never repeats an item.
+--- Bring it in with:  use sets   (then sets.union([1, 2], [2, 3]))
+--- or pick a few:     use union, intersection from sets
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_set(xs, what)
+    if xs is range then return unique(map(xs, x => x))
+    if not (xs is list)
+        fail "{what} needs lists, but got {type(xs)}."
+    unique(xs)
+
+hidden fn some_sets(lists, what)
+    if length(lists) == 0
+        fail "{what} needs at least one list."
+    [a_set(xs, what) for xs in lists]
+
+
+-- ── making sets ─────────────────────────────────────────
+
+--- The list with repeats taken out, first appearances kept: to_set([3, 1, 3, 2]) is [3, 1, 2]
+fn to_set(xs) => a_set(xs, "to_set")
+
+--- true if the two lists hold the same things, whatever the order or repeats.
+fn equal(a, b)
+    let left = a_set(a, "equal")
+    let right = a_set(b, "equal")
+    length(left) == length(right) and all(left, x => x in right)
+
+
+-- ── combining sets ──────────────────────────────────────
+
+--- Everything that's in any of the lists: union([1, 2], [2, 3]) is [1, 2, 3]
+fn union(...lists)
+    var out = []
+    for xs in some_sets(lists, "union")
+        for x in xs
+            if x not in out then push(out, x)
+    out
+
+--- Only what's in every list: intersection([1, 2, 3], [2, 3, 4]) is [2, 3]
+fn intersection(...lists)
+    let all_sets = some_sets(lists, "intersection")
+    keep(all_sets[0], x => all(all_sets, xs => x in xs))
+
+--- What's in the first list but not the second: difference([1, 2, 3], [2]) is [1, 3]
+fn difference(a, b)
+    let right = a_set(b, "difference")
+    keep(a_set(a, "difference"), x => x not in right)
+
+--- What's in one list or the other, but not both: symmetric_difference([1, 2], [2, 3]) is [1, 3]
+fn symmetric_difference(a, b) => difference(a, b) + difference(b, a)
+
+
+-- ── asking about sets ───────────────────────────────────
+
+--- true if everything in a is also in b.
+fn is_subset(a, b)
+    let right = a_set(b, "is_subset")
+    all(a_set(a, "is_subset"), x => x in right)
+
+--- true if a holds everything b does.
+fn is_superset(a, b) => is_subset(b, a)
+
+--- true if the two lists share nothing at all.
+fn is_disjoint(a, b) => length(intersection(a, b)) == 0
+
+
+test "making sets"
+    expect to_set([3, 1, 3, 2]) == [3, 1, 2]
+    expect to_set(1..3) == [1, 2, 3]
+    expect equal([1, 2, 2], [2, 1])
+    expect not equal([1, 2], [1, 2, 3])
+
+test "combining"
+    expect union([1, 2], [2, 3]) == [1, 2, 3]
+    expect union([1], [2], [1, 3]) == [1, 2, 3]
+    expect intersection([1, 2, 3], [2, 3, 4]) == [2, 3]
+    expect intersection([1, 2, 3], [2, 3], [3]) == [3]
+    expect difference([1, 2, 3], [2]) == [1, 3]
+    expect symmetric_difference([1, 2], [2, 3]) == [1, 3]
+    expect union(["swan", "duck"], ["duck"]) == ["swan", "duck"]
+
+test "asking"
+    expect is_subset([1, 2], [2, 1, 3])
+    expect not is_subset([1, 4], [1, 2])
+    expect is_superset([1, 2, 3], [3])
+    expect is_disjoint([1, 2], [3, 4])
+    expect not is_disjoint([1, 2], [2])

@@ -1,0 +1,61 @@
+-- An arcade of little games, each one a library: tictactoe, hangman, wordle, cards and maze.
+
+use tictactoe
+use hangman
+use wordle
+use cards
+use maze
+use draw
+
+say draw.box("Welcome to the Swan Lake arcade", title: "arcade")
+
+-- Noughts and crosses: the computer plays itself.
+say ""
+say "── Tic-tac-toe ──"
+let board = tictactoe.Board()
+var mark = "X"
+while not board.is_over()
+    board.play(tictactoe.best_move(board, mark), mark)
+    mark = tictactoe.other(mark)
+say board.show()
+say "Result:", board.winner() ?? "a draw, as two perfect players always manage"
+
+-- Hangman: guessing a word letter by letter.
+say ""
+say "── Hangman ──"
+let game = hangman.Game("cygnet")
+for letter in ["e", "a", "c", "t", "o", "y", "g", "n"]
+    game.guess(letter)
+    if game.is_over() then stop
+say game.picture()
+say game.status()
+say if game.is_won() then "Saved!" else "Oh no."
+
+-- Wordle: scoring guesses against a secret word.
+say ""
+say "── Wordle ──"
+let secret = "swans"
+for guess in ["snake", "swoon", "swans"]
+    say guess, wordle.show(guess, secret)
+
+-- Cards: a quick hand of blackjack.
+say ""
+say "── Blackjack ──"
+let deck = cards.Deck()
+deck.shuffle()
+let hand = deck.deal(2)
+say "You hold", cards.hand_text(hand), "worth", cards.blackjack_value(hand)
+say "That's", cards.hand_kind(deck.deal(5)), "for the next five"
+
+-- Maze: freshly generated and solved.
+say ""
+say "── Maze ──"
+let cells = maze.generate_cells(15, 7)
+say maze.show(cells, maze.solve(cells))
+say "The way out takes", maze.path_length(cells), "steps"
+
+test "the arcade plays fair"
+    expect tictactoe.play_text("X1 O4 X2 O5 X3").winner() == "X"
+    expect wordle.score("snake", "swans")[0] == "green"
+    expect cards.blackjack_value([cards.Card("A", "spades"), cards.Card("K", "hearts")]) == 21
+    expect maze.path_length(maze.generate_cells(9, 9)) > 0

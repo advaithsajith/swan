@@ -1,0 +1,117 @@
+--- School physics: speed, forces, energy, falling things and Ohm's law.
+--- Everything uses metres, kilograms and seconds, so answers come out in newtons, joules and so on.
+--- Bring it in with:  use physics   (then physics.kinetic_energy(2, 3))
+--- or pick a few:     use fall_time, force from physics
+
+--- How fast things speed up as they fall on Earth, in metres per second each second.
+let g = 9.81
+--- The speed of light in metres per second.
+let speed_of_light = 299792458
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn amount(x, what, name)
+    if not (x is number)
+        fail "{what} needs a number for the {name}, but got {type(x)}."
+    if x < 0
+        fail "{what} needs the {name} to be 0 or more, but got {x}."
+    x
+
+hidden fn not_zero(x, what, name)
+    amount(x, what, name)
+    if x == 0
+        fail "{what} can't divide by a {name} of 0."
+    x
+
+
+-- ── moving ──────────────────────────────────────────────
+
+--- Speed from distance and time: speed(100, 9.58) for a 100 m sprint.
+fn speed(distance_in, time_in) => amount(distance_in, "speed", "distance") / not_zero(time_in, "speed", "time")
+
+--- Distance covered at a steady speed for some time.
+fn distance(speed_in, time_in) => amount(speed_in, "distance", "speed") * amount(time_in, "distance", "time")
+
+--- How long a distance takes at a steady speed.
+fn time_taken(distance_in, speed_in) => amount(distance_in, "time_taken", "distance") / not_zero(speed_in, "time_taken", "speed")
+
+--- How quickly speed changes: acceleration(10, 2) is 5 m/s² for a change of 10 m/s over 2 seconds.
+fn acceleration(change_in_speed, time_in)
+    if not (change_in_speed is number)
+        fail "acceleration needs a number for the change in speed, but got {type(change_in_speed)}."
+    change_in_speed / not_zero(time_in, "acceleration", "time")
+
+--- Momentum: mass times speed.
+fn momentum(mass, speed_in) => amount(mass, "momentum", "mass") * amount(speed_in, "momentum", "speed")
+
+
+-- ── forces and energy ───────────────────────────────────
+
+--- Force in newtons: mass times acceleration.
+fn force(mass, acceleration_in) => amount(mass, "force", "mass") * amount(acceleration_in, "force", "acceleration")
+
+--- The weight of a mass in newtons: the force gravity pulls it down with.
+fn weight(mass, gravity = g) => amount(mass, "weight", "mass") * amount(gravity, "weight", "gravity")
+
+--- Energy of movement in joules: half the mass times the speed squared.
+fn kinetic_energy(mass, speed_in) => amount(mass, "kinetic_energy", "mass") * amount(speed_in, "kinetic_energy", "speed") ** 2 / 2
+
+--- Energy stored by being up high, in joules: mass times gravity times height.
+fn potential_energy(mass, height, gravity = g)
+    amount(mass, "potential_energy", "mass") * amount(gravity, "potential_energy", "gravity") * amount(height, "potential_energy", "height")
+
+--- How tightly packed something is: mass divided by volume.
+fn density(mass, volume) => amount(mass, "density", "mass") / not_zero(volume, "density", "volume")
+
+
+-- ── falling ─────────────────────────────────────────────
+
+--- How long something takes to fall from a height, ignoring air.
+fn fall_time(height, gravity = g) => sqrt(2 * amount(height, "fall_time", "height") / not_zero(gravity, "fall_time", "gravity"))
+
+--- How fast something is going when it lands after falling from a height, ignoring air.
+fn fall_speed(height, gravity = g) => sqrt(2 * amount(gravity, "fall_speed", "gravity") * amount(height, "fall_speed", "height"))
+
+
+-- ── electricity ─────────────────────────────────────────
+
+--- Ohm's law: volts = amps × ohms. Give any two and it works out the third: ohms_law(volts: 12, ohms: 4) is 3 amps.
+fn ohms_law(volts = nothing, amps = nothing, ohms = nothing)
+    let missing = count([volts, amps, ohms], v => v == nothing)
+    if missing != 1
+        fail "ohms_law needs exactly two of volts:, amps: and ohms:, and works out the third."
+    for v in [volts, amps, ohms]
+        if v != nothing and not (v is number)
+            fail "ohms_law needs numbers, but got {type(v)}."
+    if volts == nothing then return amps * ohms
+    if amps == nothing then return volts / not_zero(ohms, "ohms_law", "resistance")
+    volts / not_zero(amps, "ohms_law", "current")
+
+
+test "moving"
+    expect round(speed(100, 9.58), 2) == 10.44
+    expect distance(10, 5) == 50
+    expect time_taken(100, 20) == 5
+    expect acceleration(10, 2) == 5
+    expect acceleration(-10, 2) == -5
+    expect momentum(2, 3) == 6
+
+test "forces and energy"
+    expect force(10, 2) == 20
+    expect round(weight(10), 2) == 98.1
+    expect round(weight(10, gravity: 1.62), 2) == 16.2
+    expect kinetic_energy(2, 3) == 9
+    expect round(potential_energy(2, 10), 1) == 196.2
+    expect density(10, 2) == 5
+
+test "falling"
+    expect round(fall_time(20), 2) == 2.02
+    expect fall_time(5, gravity: 10) == 1
+    expect fall_speed(5, gravity: 10) == 10
+
+test "electricity"
+    expect ohms_law(volts: 12, ohms: 4) == 3
+    expect ohms_law(amps: 2, ohms: 5) == 10
+    expect ohms_law(volts: 9, amps: 3) == 3
+    expect g == 9.81 and speed_of_light == 299792458

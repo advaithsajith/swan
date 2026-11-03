@@ -1,0 +1,60 @@
+-- A data notebook: csv and json for reading, stats and plot for looking, markdown for writing it up.
+
+use csv
+use json
+use stats
+use plot
+use markdown
+use calendar
+use money
+
+-- Some data, as it might arrive in a file.
+let raw = join([
+    "month,visitors,takings",
+    "January,1200,8400.50",
+    "February,1350,9100",
+    "March,1900,13300.25",
+    "April,2400,16900",
+    "May,3100,21700.75",
+    "June,2800,19600",
+], "\n")
+
+let rows = csv.parse(raw)
+let visitors = rows |> map(r => r.visitors)
+let takings = rows |> map(r => r.takings)
+
+say markdown.heading("Swan Lake visitor report", 1)
+say ""
+say markdown.table(rows)
+say ""
+say "Visitors by month:", plot.sparkline(visitors)
+say plot.line(visitors, height: 6)
+say ""
+
+let facts = stats.summary(visitors)
+say markdown.bullets([
+    "Busiest month: {rows[search_max(visitors)].month} with {facts.max} visitors",
+    "Typical month: {round(facts.mean)} visitors, give or take {round(facts.deviation)}",
+    "Takings in all: {money.format(sum(takings))}",
+    "Visitors and takings move together: correlation {round(stats.correlation(visitors, takings), 3)}",
+])
+
+fn search_max(values)
+    var best = 0
+    for i, v in values
+        if v > values[best] then best = i
+    best
+
+say ""
+say markdown.heading("As JSON, for the website", 2)
+say json.to_json({report: "visitors", months: length(rows), total: sum(visitors)}, pretty: true)
+
+say ""
+say markdown.heading("Next planning meeting", 2)
+say calendar.month(2026, 12, mark: 14)
+
+test "the notebook adds up"
+    expect length(rows) == 6
+    expect facts.max == 3100
+    expect json.from_json(json.to_json(rows)) == rows
+    expect money.format(sum(takings)) == "$89,001.50"

@@ -1,0 +1,142 @@
+--- Writing Markdown: headings, lists, tables, links and code, ready to save as a .md file.
+--- Every tool gives back text, so join the pieces with "\n\n" and write_file them.
+--- Bring it in with:  use markdown   (then markdown.heading("Swan Lake"))
+--- or pick a few:     use bullets, table from markdown
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn some_text(t, what)
+    if not (t is text)
+        fail "{what} needs text, but got {type(t)}."
+    t
+
+hidden fn a_list(xs, what)
+    if xs is range then return map(xs, x => x)
+    if not (xs is list)
+        fail "{what} needs a list, but got {type(xs)}."
+    xs
+
+
+-- ── headings and paragraphs ─────────────────────────────
+
+--- A heading. level 1 is the biggest, level 6 the smallest: heading("Swans", 2) is "## Swans"
+fn heading(t, level = 1)
+    some_text(t, "heading")
+    if not (level is number) or floor(level) != level or not (1 <= level <= 6)
+        fail "heading needs a level from 1 to 6, but got {level}."
+    "#" * level + " " + t
+
+--- A quoted paragraph, with > at the start of every line.
+fn quote(t) => lines(some_text(t, "quote")) |> map(l => "> " + l) |> join("\n")
+
+--- A link: link("Swan", "https://example.com") is "[Swan](https://example.com)"
+fn link(t, url) => "[{some_text(t, "link")}]({some_text(url, "link")})"
+
+--- **bold** text.
+fn bold(t) => "**{some_text(t, "bold")}**"
+
+--- *italic* text.
+fn italic(t) => "*{some_text(t, "italic")}*"
+
+--- `code` inside a sentence.
+fn code(t) => "`{some_text(t, "code")}`"
+
+--- A block of code with ``` fences, and the language's name if you give one.
+fn code_block(t, language = "") => "```{language}\n{some_text(t, "code_block")}\n```"
+
+
+-- ── lists ───────────────────────────────────────────────
+
+--- A bulleted list, one "- item" per line.
+fn bullets(items) => a_list(items, "bullets") |> map(i => "- {i}") |> join("\n")
+
+--- A numbered list: "1. first", "2. second", …
+fn numbered(items)
+    var out = []
+    for i, item in a_list(items, "numbered")
+        push(out, "{i + 1}. {item}")
+    join(out, "\n")
+
+--- A checklist. Items in done get a tick: checklist(["eat", "swim"], done: ["eat"])
+fn checklist(items, done = [])
+    a_list(done, "checklist")
+    a_list(items, "checklist") |> map(i => (if i in done then "- [x] " else "- [ ] ") + text(i)) |> join("\n")
+
+
+-- ── tables ──────────────────────────────────────────────
+
+--- A table from a list of maps. The first map's keys become the headings.
+fn table(rows)
+    if not (rows is list) or length(rows) == 0 or not (rows[0] is map)
+        fail "table needs a list of maps, like: [\{name: 'Odette', age: 21\}]"
+    let headings = keys(rows[0])
+    var out = ["| " + join(headings, " | ") + " |", "| " + join(["---" for h in headings], " | ") + " |"]
+    for r in rows
+        push(out, "| " + join([text(get(r, h, "")) for h in headings], " | ") + " |")
+    join(out, "\n")
+
+
+-- ── back to plain text ──────────────────────────────────
+
+--- Takes the simple marks off Markdown, leaving the words: to_text("## **Hi** [there](x)") is "Hi there"
+fn to_text(md)
+    some_text(md, "to_text")
+    var out = []
+    for l in lines(md)
+        var line = l
+        while starts_with(line, "#") or starts_with(line, ">")
+            line = trim(line[1..-1])
+        if starts_with(line, "- [x] ") or starts_with(line, "- [ ] ") then line = line[6..-1]
+        if starts_with(line, "- ") then line = line[2..-1]
+        line = unlink(line)
+        for mark in ["**", "__", "*", "_", "`"]
+            line = replace(line, mark, "")
+        push(out, line)
+    join(out, "\n")
+
+--- Turns [words](url) into just words, as many times as it appears.
+hidden fn unlink(line)
+    var out = ""
+    var left = line
+    while "](" in left
+        let before = split(left, "](")
+        let head = before[0]
+        if not ("[" in head)
+            out += head + "]("
+            left = join([before[i] for i in 1..<length(before)], "](")
+        else
+            let opened = split(head, "[")
+            out += join([opened[i] for i in 0..<(length(opened) - 1)], "[")
+            let after = join([before[i] for i in 1..<length(before)], "](")
+            if ")" in after
+                let closed = split(after, ")")
+                out += opened[-1]
+                left = join([closed[i] for i in 1..<length(closed)], ")")
+            else
+                out += opened[-1] + "](" + after
+                left = ""
+    out + left
+
+
+test "headings and marks"
+    expect heading("Swans") == "# Swans"
+    expect heading("Cygnets", 3) == "### Cygnets"
+    expect quote("a\nb") == "> a\n> b"
+    expect link("Swan", "https://example.com") == "[Swan](https://example.com)"
+    expect bold("x") + italic("y") + code("z") == "**x***y*`z`"
+    expect code_block("say 1", "swan") == "```swan\nsay 1\n```"
+
+test "lists"
+    expect bullets(["a", "b"]) == "- a\n- b"
+    expect numbered(["a", "b"]) == "1. a\n2. b"
+    expect checklist(["eat", "swim"], done: ["eat"]) == "- [x] eat\n- [ ] swim"
+
+test "tables"
+    let t = table([{name: "Odette", age: 9}, {name: "Pip", age: 10}])
+    expect lines(t) == ["| name | age |", "| --- | --- |", "| Odette | 9 |", "| Pip | 10 |"]
+
+test "back to text"
+    expect to_text("## **Hi** [there](x)") == "Hi there"
+    expect to_text("- a\n- [x] b\n> c") == "a\nb\nc"
+    expect to_text("see [one](u1) and [two](u2).") == "see one and two."

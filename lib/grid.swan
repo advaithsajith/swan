@@ -1,0 +1,166 @@
+--- Grids: boards, maps and pixel pictures as rows of cells. A grid is a list of rows, and each row
+--- is a list of cells, so grid[y][x] is the cell x across and y down (both counted from 0).
+--- Bring it in with:  use grid   (then let board = grid.make(3, 3))
+--- or pick a few:     use make, rows_text from grid
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_grid(g, what)
+    if not (g is list) or length(g) == 0 or not (g[0] is list) or length(g[0]) == 0
+        fail "{what} needs a grid: a list of rows, like make(3, 3) gives."
+    for row in g
+        if not (row is list) or length(row) != length(g[0])
+            fail "{what} needs every row of the grid to be the same length."
+    g
+
+hidden fn on_grid(g, x, y, what)
+    if not (x is number) or not (y is number) or floor(x) != x or floor(y) != y
+        fail "{what} needs whole-number positions, but got x: {x}, y: {y}."
+    if not in_bounds(g, x, y)
+        fail "{what}: there's no cell at x: {x}, y: {y}. The grid is {width(g)} wide and {height(g)} tall, counting from 0."
+
+
+-- ── making grids ────────────────────────────────────────
+
+--- A new grid, width cells across and height down, every cell holding fill.
+fn make(width_wanted, height_wanted, fill = ".")
+    for n in [width_wanted, height_wanted]
+        if not (n is number) or floor(n) != n or n < 1
+            fail "make needs a width and height of 1 or more, but got {width_wanted} by {height_wanted}."
+    [[fill for x in 1..width_wanted] for y in 1..height_wanted]
+
+--- A grid of characters from lines of text, so you can draw a map and read it in.
+fn from_text(t)
+    if not (t is text) or trim(t) == ""
+        fail "from_text needs some lines of text to make a grid from."
+    let rows = keep(lines(t), l => l != "")
+    let widest = max(rows |> map(length))
+    [chars(r) + [" "] * (widest - length(r)) for r in rows]
+
+
+-- ── one cell ────────────────────────────────────────────
+
+--- How many cells across the grid is.
+fn width(g) => length(a_grid(g, "width")[0])
+
+--- How many cells down the grid is.
+fn height(g) => length(a_grid(g, "height"))
+
+--- true if x, y is a real position on the grid.
+fn in_bounds(g, x, y)
+    a_grid(g, "in_bounds")
+    0 <= x < length(g[0]) and 0 <= y < length(g)
+
+--- The cell at x across, y down.
+fn get(g, x, y)
+    on_grid(a_grid(g, "get"), x, y, "get")
+    g[y][x]
+
+--- Changes the cell at x, y and gives the grid back, so calls can chain.
+fn set(g, x, y, value)
+    on_grid(a_grid(g, "set"), x, y, "set")
+    g[y][x] = value
+    g
+
+--- The positions next to x, y as [x, y] pairs: up, down, left and right. Add diagonals: true for all eight.
+fn neighbours(g, x, y, diagonals = false)
+    on_grid(a_grid(g, "neighbours"), x, y, "neighbours")
+    var steps = [[0, -1], [-1, 0], [1, 0], [0, 1]]
+    if diagonals then steps = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]
+    [[x + s[0], y + s[1]] for s in steps if in_bounds(g, x + s[0], y + s[1])]
+
+
+-- ── the whole grid ──────────────────────────────────────
+
+--- Every cell as {x, y, value}, row by row.
+fn cells(g)
+    a_grid(g, "cells")
+    var out = []
+    for y, row in g
+        for x, value in row
+            push(out, {x: x, y: y, value: value})
+    out
+
+--- The [x, y] of the first cell holding value, or nothing.
+fn locate(g, value)
+    for c in cells(a_grid(g, "locate"))
+        if c.value == value then return [c.x, c.y]
+    nothing
+
+--- How many cells hold value.
+fn count_of(g, value) => count(cells(a_grid(g, "count_of")), c => c.value == value)
+
+--- A new grid with the function applied to every cell: map_cells(g, c => if c == "#" then 1 else 0)
+fn map_cells(g, f)
+    if not (f is function)
+        fail "map_cells needs a little function for each cell, like: c => upper(c)"
+    [[f(c) for c in row] for row in a_grid(g, "map_cells")]
+
+--- The grid as text, one row per line, with between put between cells.
+fn rows_text(g, between = "") => a_grid(g, "rows_text") |> map(row => join(row, between)) |> join("\n")
+
+
+-- ── turning and flipping ────────────────────────────────
+
+--- The grid upside down (top row becomes the bottom).
+fn flip(g) => reverse(a_grid(g, "flip"))
+
+--- The grid mirrored left to right.
+fn mirror(g) => a_grid(g, "mirror") |> map(row => reverse(row))
+
+--- The grid turned a quarter turn clockwise.
+fn rotate(g)
+    a_grid(g, "rotate")
+    [[g[y][x] for y in (length(g) - 1)..0] for x in 0..<length(g[0])]
+
+
+-- ── filling ─────────────────────────────────────────────
+
+--- Paint-bucket fill: changes the cell at x, y and every connected cell with the same value.
+fn fill_region(g, x, y, value)
+    on_grid(a_grid(g, "fill_region"), x, y, "fill_region")
+    let old = g[y][x]
+    if old == value then return g
+    var todo = [[x, y]]
+    while length(todo) > 0
+        let p = pop(todo)
+        if g[p[1]][p[0]] != old then skip
+        g[p[1]][p[0]] = value
+        for n in neighbours(g, p[0], p[1])
+            if g[n[1]][n[0]] == old then push(todo, n)
+    g
+
+
+test "making and reading"
+    let g = make(3, 2)
+    expect g == [[".", ".", "."], [".", ".", "."]]
+    expect width(g) == 3 and height(g) == 2
+    set(g, 1, 0, "S")
+    expect get(g, 1, 0) == "S" and get(g, 0, 1) == "."
+    expect in_bounds(g, 2, 1) and not in_bounds(g, 3, 0)
+    expect from_text("ab\nc") == [["a", "b"], ["c", " "]]
+    expect rows_text(g) == ".S.\n..."
+    expect rows_text(make(2, 1, 0), " ") == "0 0"
+
+test "cells and neighbours"
+    let g = from_text("#..\n.#.")
+    expect locate(g, "#") == [0, 0] and locate(g, "x") == nothing
+    expect count_of(g, "#") == 2
+    expect neighbours(g, 0, 0) == [[1, 0], [0, 1]]
+    expect length(neighbours(g, 1, 1, diagonals: true)) == 5
+    expect cells(make(1, 1, "a")) == [{x: 0, y: 0, value: "a"}]
+    expect map_cells(g, c => if c == "#" then 1 else 0) == [[1, 0, 0], [0, 1, 0]]
+
+test "turning and flipping"
+    let g = [[1, 2], [3, 4], [5, 6]]
+    expect flip(g) == [[5, 6], [3, 4], [1, 2]]
+    expect mirror(g) == [[2, 1], [4, 3], [6, 5]]
+    expect rotate(g) == [[5, 3, 1], [6, 4, 2]]
+    expect rotate(rotate(rotate(rotate(g)))) == g
+
+test "filling"
+    let g = from_text("..#\n..#\n##.")
+    fill_region(g, 0, 0, "~")
+    expect rows_text(g) == "~~#\n~~#\n##."
+    expect rows_text(fill_region(make(2, 2), 0, 0, ".")) == "..\n.."

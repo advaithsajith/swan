@@ -1,0 +1,95 @@
+--- Emoji by name, ratings made of stars, and faces for moods.
+--- Bring it in with:  use emoji   (then emoji.of("swan"))
+--- or pick a few:     use of, rate from emoji
+
+use chance
+
+
+hidden fn table() => {
+    swan: "🦢", duck: "🦆", bird: "🐦", owl: "🦉", penguin: "🐧", chicken: "🐔", eagle: "🦅",
+    cat: "🐱", dog: "🐶", fox: "🦊", bear: "🐻", panda: "🐼", lion: "🦁", tiger: "🐯", frog: "🐸",
+    fish: "🐟", whale: "🐳", octopus: "🐙", butterfly: "🦋", bee: "🐝", snail: "🐌", unicorn: "🦄",
+    heart: "❤️", star: "⭐", sparkles: "✨", fire: "🔥", sun: "☀️", moon: "🌙", cloud: "☁️", rain: "🌧️",
+    snow: "❄️", rainbow: "🌈", lightning: "⚡", wave: "🌊", tree: "🌳", flower: "🌸", leaf: "🍃",
+    check: "✅", cross: "❌", warning: "⚠️", question: "❓", exclamation: "❗", idea: "💡", lock: "🔒",
+    key: "🔑", bell: "🔔", clock: "⏰", hourglass: "⏳", calendar: "📅", book: "📖", pencil: "✏️",
+    rocket: "🚀", car: "🚗", bike: "🚲", plane: "✈️", ship: "🚢", house: "🏠", gift: "🎁", party: "🎉",
+    music: "🎵", trophy: "🏆", medal: "🏅", ball: "⚽", dice: "🎲", game: "🎮", pizza: "🍕", cake: "🎂",
+    apple: "🍎", coffee: "☕", tea: "🍵", thumbs_up: "👍", thumbs_down: "👎", clap: "👏", wave_hand: "👋",
+    smile: "😀", grin: "😁", laugh: "😂", wink: "😉", cool: "😎", think: "🤔", sad: "😢", angry: "😠",
+    sleepy: "😴", love: "😍", shock: "😱", neutral: "😐", sick: "🤒", party_face: "🥳",
+}
+
+hidden fn whole(n, what, least = 0)
+    if not (n is number) or floor(n) != n or n < least
+        fail "{what} needs a whole number of {least} or more, but got {n}."
+
+
+-- ── finding emoji ───────────────────────────────────────
+
+--- The emoji for a name: of("swan") is 🦢. Ask names() for all of them.
+fn of(name)
+    if not (name is text) then fail "of needs an emoji name as text, like \"swan\"."
+    let key = replace(lower(trim(name)), " ", "_")
+    if not has(table(), key)
+        fail "I don't have an emoji called {name}. See names() for the {length(names())} I know."
+    table()[key]
+
+--- Every emoji name this library knows.
+fn names() => keys(table())
+
+--- true if there's an emoji by that name.
+fn has_emoji(name) => (name is text) and has(table(), replace(lower(trim(name)), " ", "_"))
+
+--- Swaps codes like :swan: in some text for the emoji: replace_names("a :swan: swims") is "a 🦢 swims"
+fn replace_names(t)
+    if not (t is text) then fail "replace_names works on text."
+    var out = t
+    for name, picture in table()
+        out = replace(out, ":{name}:", picture)
+    out
+
+--- A random emoji.
+fn any_emoji() => chance.pick(values(table()))
+
+--- All the face emoji, for moods.
+fn faces() => [of(n) for n in ["smile", "grin", "laugh", "wink", "cool", "think", "sad", "angry", "sleepy", "love", "shock", "neutral", "sick", "party_face"]]
+
+
+-- ── stars and moods ─────────────────────────────────────
+
+--- A star rating: rate(3) is "★★★☆☆". Change the stars with full: and empty:.
+fn rate(score, out_of = 5, full = "★", empty = "☆")
+    whole(score, "rate")
+    whole(out_of, "rate", least: 1)
+    if score > out_of then fail "rate can't give {score} out of {out_of}."
+    full * score + empty * (out_of - score)
+
+--- A face for a score from 0 (awful) to 10 (wonderful).
+fn mood(score)
+    if not (score is number) or not (0 <= score <= 10)
+        fail "mood needs a score from 0 to 10, but got {score}."
+    match floor(score)
+        0 or 1 => of("sad")
+        2 or 3 => of("neutral")
+        4 or 5 or 6 => of("smile")
+        7 or 8 => of("grin")
+        _ => of("party_face")
+
+
+test "finding emoji"
+    expect of("swan") == "🦢"
+    expect of("Thumbs Up") == "👍"
+    expect has_emoji("duck") and not has_emoji("dragon")
+    expect length(names()) >= 60
+    expect replace_names("a :swan: and a :duck:") == "a 🦢 and a 🦆"
+    expect any_emoji() in values(table())
+    expect length(faces()) == 14
+
+test "stars and moods"
+    expect rate(3) == "★★★☆☆"
+    expect rate(2, out_of: 3, full: "●", empty: "○") == "●●○"
+    expect rate(0) == "☆☆☆☆☆"
+    expect mood(0) == "😢"
+    expect mood(5.5) == "😀"
+    expect mood(10) == "🥳"

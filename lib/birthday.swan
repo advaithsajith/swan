@@ -1,0 +1,126 @@
+--- Birthdays: how old someone is, when the next one is, star signs, zodiac animals and birthstones.
+--- Dates are year, month, day numbers; times are seconds like now() gives (in UTC).
+--- Bring it in with:  use birthday   (then birthday.age(2010, 5, 17))
+--- or pick a few:     use star_sign, days_until_birthday from birthday
+
+use clock
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_date(year, month, day, what)
+    if not (year is number) or not (month is number) or not (day is number)
+        fail "{what} needs a year, month and day as numbers."
+    clock.timestamp(year, month, day)
+
+hidden fn today_parts(on)
+    let stamp = if on == nothing then now() else on
+    if not (stamp is number) then fail "on: needs a time in seconds, like now() gives."
+    clock.date(stamp)
+
+--- A valid birthday in a given year (29 February becomes 28 February in other years).
+hidden fn birthday_in(year, month, day)
+    let d = min(day, clock.days_in_month(year, month))
+    clock.timestamp(year, month, d)
+
+
+-- ── ages and countdowns ─────────────────────────────────
+
+--- Whole years old today, or at the time given with on:.
+fn age(year, month, day, on = nothing)
+    a_date(year, month, day, "age")
+    let t = today_parts(on)
+    if clock.timestamp(t.year, t.month, t.day) < a_date(year, month, day, "age")
+        fail "age can't work out an age for a birthday that hasn't happened yet."
+    var years = t.year - year
+    if t.month < month or (t.month == month and t.day < day) then years -= 1
+    years
+
+--- How many days someone born on that date has been alive, today or at on:.
+fn days_alive(year, month, day, on = nothing)
+    let t = today_parts(on)
+    clock.days_between(a_date(year, month, day, "days_alive"), clock.timestamp(t.year, t.month, t.day))
+
+--- The time of the next birthday (today counts, if it's today).
+fn next_birthday(month, day, on = nothing)
+    let t = today_parts(on)
+    let today_stamp = clock.timestamp(t.year, t.month, t.day)
+    a_date(2000, month, day, "next_birthday")
+    let this_year = birthday_in(t.year, month, day)
+    if this_year >= today_stamp then return this_year
+    birthday_in(t.year + 1, month, day)
+
+--- Days to wait for the next birthday. 0 means it's today!
+fn days_until_birthday(month, day, on = nothing)
+    let t = today_parts(on)
+    clock.days_between(clock.timestamp(t.year, t.month, t.day), next_birthday(month, day, on: on))
+
+--- true if the birthday is today.
+fn is_birthday_today(month, day, on = nothing) => days_until_birthday(month, day, on: on) == 0
+
+--- The day of the week someone was born on.
+fn weekday_born(year, month, day) => clock.weekday(a_date(year, month, day, "weekday_born"))
+
+
+-- ── signs and stones ────────────────────────────────────
+
+--- The western star sign for a birthday: star_sign(11, 3) is "Scorpio"
+fn star_sign(month, day)
+    a_date(2000, month, day, "star_sign")
+    let signs = [[1, 20, "Aquarius"], [2, 19, "Pisces"], [3, 21, "Aries"], [4, 20, "Taurus"], [5, 21, "Gemini"],
+                 [6, 21, "Cancer"], [7, 23, "Leo"], [8, 23, "Virgo"], [9, 23, "Libra"], [10, 23, "Scorpio"],
+                 [11, 22, "Sagittarius"], [12, 22, "Capricorn"]]
+    var sign = "Capricorn"
+    for s in signs
+        if month > s[0] or (month == s[0] and day >= s[1]) then sign = s[2]
+    sign
+
+--- The Chinese zodiac animal for a year of birth: chinese_zodiac(2012) is "Dragon"
+fn chinese_zodiac(year)
+    if not (year is number) or floor(year) != year then fail "chinese_zodiac needs a whole year, but got {year}."
+    let animals = ["Monkey", "Rooster", "Dog", "Pig", "Rat", "Ox", "Tiger", "Rabbit", "Dragon", "Snake", "Horse", "Goat"]
+    animals[year % 12]
+
+--- The birthstone for a month: birthstone(9) is "sapphire"
+fn birthstone(month)
+    if not (month is number) or floor(month) != month or not (1 <= month <= 12)
+        fail "birthstone needs a month from 1 to 12, but got {month}."
+    ["garnet", "amethyst", "aquamarine", "diamond", "emerald", "pearl", "ruby", "peridot", "sapphire", "opal", "topaz", "turquoise"][month - 1]
+
+--- The generation someone born in a year belongs to, roughly: generation(2008) is "Gen Z"
+fn generation(year)
+    if not (year is number) then fail "generation needs a year, but got {type(year)}."
+    if year >= 2025 then return "Gen Beta"
+    if year >= 2013 then return "Gen Alpha"
+    if year >= 1997 then return "Gen Z"
+    if year >= 1981 then return "Millennial"
+    if year >= 1965 then return "Gen X"
+    if year >= 1946 then return "Baby Boomer"
+    if year >= 1928 then return "Silent Generation"
+    "Greatest Generation"
+
+
+test "ages and countdowns"
+    let on = clock.timestamp(2026, 11, 3)
+    expect age(2010, 5, 17, on: on) == 16
+    expect age(2010, 11, 3, on: on) == 16
+    expect age(2010, 11, 4, on: on) == 15
+    expect days_alive(2026, 11, 1, on: on) == 2
+    expect clock.date_text(next_birthday(12, 25, on: on)) == "2026-12-25"
+    expect clock.date_text(next_birthday(5, 17, on: on)) == "2027-05-17"
+    expect clock.date_text(next_birthday(2, 29, on: on)) == "2027-02-28"
+    expect days_until_birthday(12, 25, on: on) == 52
+    expect days_until_birthday(11, 3, on: on) == 0
+    expect is_birthday_today(11, 3, on: on) and not is_birthday_today(11, 4, on: on)
+    expect weekday_born(1877, 3, 4) == "Sunday"
+
+test "signs and stones"
+    expect star_sign(11, 3) == "Scorpio"
+    expect star_sign(1, 1) == "Capricorn"
+    expect star_sign(1, 20) == "Aquarius"
+    expect star_sign(12, 31) == "Capricorn"
+    expect chinese_zodiac(2012) == "Dragon"
+    expect chinese_zodiac(2026) == "Horse"
+    expect birthstone(9) == "sapphire"
+    expect generation(2008) == "Gen Z"
+    expect generation(1990) == "Millennial"

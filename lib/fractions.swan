@@ -1,0 +1,134 @@
+--- Fractions that stay exact: Fraction(1, 2).add(Fraction(1, 3)) is 5/6, not 0.8333.
+--- A Fraction simplifies itself as soon as it's made, so Fraction(2, 4) is 1/2.
+--- Bring it in with:  use fractions   (then fractions.Fraction(3, 4))
+--- or pick a few:     use Fraction, fraction_of from fractions
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn whole(n, what)
+    if not (n is number) or floor(n) != n
+        fail "{what} needs whole numbers on the top and bottom, but got {n}."
+    n
+
+hidden fn gcd(a, b)
+    var x = abs(a)
+    var y = abs(b)
+    while y != 0
+        x, y = y, x % y
+    x
+
+hidden fn a_fraction(f, what)
+    if not (f is Fraction)
+        fail "{what} needs a Fraction, like Fraction(1, 2), but got {type(f)}."
+    f
+
+--- The simplest top and bottom with the same value: simplify(4, 6) is [2, 3]
+fn simplify(top, bottom)
+    whole(top, "simplify")
+    whole(bottom, "simplify")
+    if bottom == 0
+        fail "A fraction can't have 0 on the bottom."
+    let sign = if bottom < 0 then -1 else 1
+    let g = max(gcd(top, bottom), 1)
+    [sign * top // g, sign * bottom // g]
+
+
+-- ── the shape ───────────────────────────────────────────
+
+--- A fraction: top over bottom. It simplifies itself, so Fraction(2, 4) is 1/2.
+shape Fraction(hidden raw_top, hidden raw_bottom, top = simplify(raw_top, raw_bottom)[0], bottom = simplify(raw_top, raw_bottom)[1])
+    --- This fraction plus another.
+    fn add(other)
+        a_fraction(other, "add")
+        Fraction(top * other.bottom + other.top * bottom, bottom * other.bottom)
+
+    --- This fraction minus another.
+    fn subtract(other)
+        a_fraction(other, "subtract")
+        Fraction(top * other.bottom - other.top * bottom, bottom * other.bottom)
+
+    --- This fraction times another.
+    fn multiply(other)
+        a_fraction(other, "multiply")
+        Fraction(top * other.top, bottom * other.bottom)
+
+    --- This fraction divided by another.
+    fn divide(other)
+        a_fraction(other, "divide")
+        if other.top == 0
+            fail "I can't divide by zero."
+        Fraction(top * other.bottom, bottom * other.top)
+
+    --- The fraction as text: "3/4". A whole number shows as just "2".
+    fn show()
+        if bottom == 1 then return text(top)
+        "{top}/{bottom}"
+
+    --- The fraction as a mixed number: Fraction(3, 2).mixed() is "1 1/2"
+    fn mixed()
+        if abs(top) < bottom or bottom == 1 then return show()
+        let wholes = abs(top) // bottom
+        let left = abs(top) % bottom
+        let sign = if top < 0 then "-" else ""
+        if left == 0 then return "{sign}{wholes}"
+        "{sign}{wholes} {left}/{bottom}"
+
+    --- The fraction as a decimal: Fraction(1, 4).value() is 0.25
+    fn value() => top / bottom
+
+    --- true if another fraction has the same value.
+    fn equals(other)
+        a_fraction(other, "equals")
+        top == other.top and bottom == other.bottom
+
+
+--- The nearest fraction to a decimal, with a bottom no bigger than max_bottom: fraction_of(0.75) is 3/4
+fn fraction_of(decimal, max_bottom = 1000)
+    if not (decimal is number)
+        fail "fraction_of needs a number, but got {type(decimal)}."
+    whole(max_bottom, "fraction_of")
+    if max_bottom < 1
+        fail "fraction_of needs max_bottom to be 1 or more, but got {max_bottom}."
+    var best_top = round(decimal)
+    var best_bottom = 1
+    var best_gap = abs(decimal - best_top)
+    var b = 2
+    while b <= max_bottom and best_gap > 0
+        let t = round(decimal * b)
+        let gap = abs(decimal - t / b)
+        if gap < best_gap
+            best_top, best_bottom, best_gap = t, b, gap
+        b += 1
+    Fraction(best_top, best_bottom)
+
+
+test "making fractions"
+    expect Fraction(2, 4).show() == "1/2"
+    expect Fraction(3, -6).show() == "-1/2"
+    expect Fraction(4, 2).show() == "2"
+    expect Fraction(0, 5).show() == "0"
+    expect simplify(4, 6) == [2, 3]
+
+test "arithmetic"
+    let half = Fraction(1, 2)
+    let third = Fraction(1, 3)
+    expect half.add(third).show() == "5/6"
+    expect half.subtract(third).show() == "1/6"
+    expect half.multiply(third).show() == "1/6"
+    expect half.divide(third).show() == "3/2"
+    expect half.add(half).show() == "1"
+
+test "showing and comparing"
+    expect Fraction(3, 2).mixed() == "1 1/2"
+    expect Fraction(-7, 3).mixed() == "-2 1/3"
+    expect Fraction(1, 4).mixed() == "1/4"
+    expect Fraction(1, 4).value() == 0.25
+    expect Fraction(2, 4).equals(Fraction(1, 2))
+    expect not Fraction(1, 3).equals(Fraction(1, 2))
+
+test "fraction_of"
+    expect fraction_of(0.75).show() == "3/4"
+    expect fraction_of(0.3333333333, 100).show() == "1/3"
+    expect fraction_of(2).show() == "2"
+    expect fraction_of(0.1 + 0.2, 10).show() == "3/10"

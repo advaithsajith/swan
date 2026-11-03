@@ -1,0 +1,211 @@
+--- JSON: the text format most programs and websites use to pass values around.
+--- to_json turns a Swan value into JSON text; from_json turns JSON text back into a value.
+--- Bring it in with:  use json   (then json.to_json({name: "Odette"}))
+--- or pick a few:     use to_json, from_json from json
+
+
+-- ── writing JSON ────────────────────────────────────────
+
+hidden fn escape(t)
+    var out = ""
+    for c in chars(t)
+        out += match c
+            "\"" => "\\\""
+            "\\" => "\\\\"
+            "\n" => "\\n"
+            "\t" => "\\t"
+            "\r" => "\\r"
+            _ => c
+    "\"" + out + "\""
+
+hidden fn render(value, pretty, depth)
+    if value == nothing then return "null"
+    if value is bool then return if value then "true" else "false"
+    if value is number then return text(value)
+    if value is text then return escape(value)
+    if value is range then return render(map(value, x => x), pretty, depth)
+    let pad = if pretty then "\n" + "  " * (depth + 1) else ""
+    let close = if pretty then "\n" + "  " * depth else ""
+    let between = if pretty then "," else ", "
+    if value is list
+        if length(value) == 0 then return "[]"
+        return "[" + pad + join([render(v, pretty, depth + 1) for v in value], between + pad) + close + "]"
+    if value is map
+        if length(keys(value)) == 0 then return "\{\}"
+        let parts = [escape(text(k)) + ": " + render(value[k], pretty, depth + 1) for k in keys(value)]
+        return "\{" + pad + join(parts, between + pad) + close + "\}"
+    fail "to_json can't write {type(value)} values. It handles numbers, text, bools, nothing, lists and maps."
+
+--- JSON text for a value: to_json({name: "Pip", age: 1}) is '\{"name": "Pip", "age": 1\}'
+--- Add pretty: true to spread it over lines with indents.
+fn to_json(value, pretty = false) => render(value, pretty, 0)
+
+
+-- ── reading JSON ────────────────────────────────────────
+
+hidden fn problem(at, what)
+    fail "JSON problem at character {at + 1}: {what}."
+
+hidden fn skip_spaces(t, at)
+    var i = at
+    while i < length(t) and t[i] in " \n\t\r"
+        i += 1
+    i
+
+--- Reads one value starting at position at. Gives back [value, position after it].
+hidden fn read_value(t, at)
+    let i = skip_spaces(t, at)
+    if i >= length(t) then problem(i, "I expected a value, but the text ended")
+    let c = t[i]
+    if c == "\{" then return read_map(t, i + 1)
+    if c == "[" then return read_list(t, i + 1)
+    if c == "\"" then return read_text(t, i + 1)
+    if word_at(t, i, "true") then return [true, i + 4]
+    if word_at(t, i, "false") then return [false, i + 5]
+    if word_at(t, i, "null") then return [nothing, i + 4]
+    if c in "-0123456789" then return read_number(t, i)
+    problem(i, "I didn't expect '{c}' here")
+
+hidden fn word_at(t, i, word)
+    if i + length(word) > length(t) then return false
+    join([t[k] for k in i..<(i + length(word))]) == word
+
+hidden fn read_number(t, at)
+    var i = at
+    var digits = ""
+    while i < length(t) and t[i] in "-+0123456789."
+        digits += t[i]
+        i += 1
+    var exponent = 0
+    if i < length(t) and t[i] in "eE"
+        i += 1
+        var sign = 1
+        if i < length(t) and t[i] in "+-"
+            if t[i] == "-" then sign = -1
+            i += 1
+        var e_digits = ""
+        while i < length(t) and t[i] in "0123456789"
+            e_digits += t[i]
+            i += 1
+        if e_digits == "" then problem(i, "I expected digits after the 'e'")
+        exponent = sign * number(e_digits)
+    var value = nothing
+    try
+        value = number(digits)
+    otherwise p
+        problem(at, "'{digits}' isn't a number")
+    if exponent != 0 then value = value * 10 ** exponent
+    [value, i]
+
+hidden fn read_text(t, at)
+    var out = ""
+    var i = at
+    while true
+        if i >= length(t) then problem(i, "this text never closes its quote")
+        let c = t[i]
+        if c == "\"" then return [out, i + 1]
+        if c == "\\"
+            if i + 1 >= length(t) then problem(i, "this text ends after a backslash")
+            let e = t[i + 1]
+            if e == "u"
+                if i + 5 >= length(t) then problem(i, "\\u needs four hex digits")
+                out += from_hex4(join([t[k] for k in (i + 2)..(i + 5)]), i)
+                i += 6
+                skip
+            out += match e
+                "n" => "\n"
+                "t" => "\t"
+                "r" => "\r"
+                "b" or "f" => ""
+                "\"" or "\\" or "/" => e
+                _ => problem(i, "I don't know the escape \\{e}")
+            i += 2
+        else
+            out += c
+            i += 1
+
+--- The character for a \uXXXX escape. Only plain ASCII (up to 007F) can be made here.
+hidden fn from_hex4(hex, at)
+    let digits = "0123456789abcdef"
+    var code = 0
+    for c in chars(lower(hex))
+        var pos = nothing
+        for k, d in digits
+            if d == c then pos = k
+        if pos == nothing then problem(at, "'{hex}' isn't four hex digits")
+        code = code * 16 + pos
+    if code == 32 then return " "
+    if code == 10 then return "\n"
+    if code == 9 then return "\t"
+    let printable = "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz\{|\}~"
+    if 33 <= code <= 126 then return printable[code - 33]
+    problem(at, "I can only read \\u escapes for plain letters and symbols, not \\u{hex}")
+
+hidden fn read_list(t, at)
+    var out = []
+    var i = skip_spaces(t, at)
+    if i < length(t) and t[i] == "]" then return [out, i + 1]
+    while true
+        let got = read_value(t, i)
+        push(out, got[0])
+        i = skip_spaces(t, got[1])
+        if i >= length(t) then problem(i, "this list never closes with ]")
+        if t[i] == "]" then return [out, i + 1]
+        if t[i] != "," then problem(i, "I expected ',' or ']'")
+        i += 1
+
+hidden fn read_map(t, at)
+    var out = {}
+    var i = skip_spaces(t, at)
+    if i < length(t) and t[i] == "\}" then return [out, i + 1]
+    while true
+        i = skip_spaces(t, i)
+        if i >= length(t) or t[i] != "\"" then problem(i, "I expected a key in quotes")
+        let key = read_text(t, i + 1)
+        i = skip_spaces(t, key[1])
+        if i >= length(t) or t[i] != ":" then problem(i, "I expected ':' after the key")
+        let got = read_value(t, i + 1)
+        out[key[0]] = got[0]
+        i = skip_spaces(t, got[1])
+        if i >= length(t) then problem(i, "this object never closes with \}")
+        if t[i] == "\}" then return [out, i + 1]
+        if t[i] != "," then problem(i, "I expected ',' or '\}'")
+        i += 1
+
+--- The Swan value for some JSON text: from_json('\{"a": [1, 2]\}') is {a: [1, 2]}
+fn from_json(t)
+    if not (t is text)
+        fail "from_json needs JSON text, but got {type(t)}."
+    let got = read_value(t, 0)
+    let after = skip_spaces(t, got[1])
+    if after < length(t) then problem(after, "there's more text after the value ends")
+    got[0]
+
+--- true if the text is JSON that from_json can read.
+fn is_json(t)
+    if not (t is text) then return false
+    var ok = true
+    try
+        from_json(t)
+    otherwise p
+        ok = false
+    ok
+
+
+test "writing JSON"
+    expect to_json({name: "Pip", age: 1, tags: ["a", "b"], ok: true, gone: nothing}) == "\{\"name\": \"Pip\", \"age\": 1, \"tags\": [\"a\", \"b\"], \"ok\": true, \"gone\": null\}"
+    expect to_json("say \"hi\"\n") == "\"say \\\"hi\\\"\\n\""
+    expect to_json([]) == "[]" and to_json({}) == "\{\}" and to_json(2.5) == "2.5"
+    expect to_json({a: [1]}, pretty: true) == "\{\n  \"a\": [\n    1\n  ]\n\}"
+
+test "reading JSON"
+    expect from_json("\{\"a\": [1, 2.5, -3], \"b\": \{\"c\": null\}\}") == {a: [1, 2.5, -3], b: {c: nothing}}
+    expect from_json(" [true, false, \"x\\ny\", \"\\u0041\"] ") == [true, false, "x\ny", "A"]
+    expect from_json("1e3") == 1000 and from_json("2.5E-1") == 0.25
+    expect from_json("\"\\/\"") == "/"
+
+test "round trips and problems"
+    let value = {swans: [{name: "Odette", age: 7}], lake: "Swan \"Lake\"", depth: nothing}
+    expect from_json(to_json(value)) == value
+    expect from_json(to_json(value, pretty: true)) == value
+    expect is_json("[1, 2]") and not is_json("[1, 2") and not is_json("")

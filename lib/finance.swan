@@ -1,0 +1,123 @@
+--- Interest, loans and savings: how money grows (or shrinks) over time.
+--- Rates are percents per year, like 5 for 5%. Money answers are rounded to 2 decimals.
+--- Bring it in with:  use finance   (then finance.compound(1000, 5, 10))
+--- or pick a few:     use loan_payment, future_value from finance
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn positive(x, what, name)
+    if not (x is number) or x < 0
+        fail "{what} needs {name} of 0 or more, but got {x}."
+    x
+
+hidden fn cents(x) => round(x, 2)
+
+hidden fn monthly(rate) => rate / 100 / 12
+
+
+-- ── interest ────────────────────────────────────────────
+
+--- What a sum grows to with compound interest: compound(1000, 5, 10) is 1628.89.
+--- times_per_year is how often interest is added (12 for monthly).
+fn compound(principal, rate, years, times_per_year = 1)
+    positive(principal, "compound", "a starting amount")
+    positive(rate, "compound", "a rate")
+    positive(years, "compound", "a number of years")
+    if not (times_per_year is number) or floor(times_per_year) != times_per_year or times_per_year < 1
+        fail "compound needs times_per_year to be a whole number of 1 or more, but got {times_per_year}."
+    cents(principal * (1 + rate / 100 / times_per_year) ** (times_per_year * years))
+
+--- Simple interest, with nothing added to the pile: simple_interest(1000, 5, 3) is 150
+fn simple_interest(principal, rate, years)
+    positive(principal, "simple_interest", "a starting amount")
+    positive(rate, "simple_interest", "a rate")
+    positive(years, "simple_interest", "a number of years")
+    cents(principal * rate / 100 * years)
+
+--- How many years it takes money to double at a rate: years_to_double(7) is about 10.2
+fn years_to_double(rate)
+    if not (rate is number) or rate <= 0
+        fail "years_to_double needs a rate above 0, but got {rate}."
+    var years = 0
+    var amount = 1
+    var before = 1
+    while amount < 2
+        before = amount
+        amount *= 1 + rate / 100
+        years += 1
+    round(years - 1 + (2 - before) / (amount - before), 1)
+
+--- What an amount will be worth in today's money after some years of inflation: inflation_adjust(100, 3, 10) is 74.41
+fn inflation_adjust(amount, rate, years)
+    positive(amount, "inflation_adjust", "an amount")
+    positive(rate, "inflation_adjust", "a rate")
+    positive(years, "inflation_adjust", "a number of years")
+    cents(amount / (1 + rate / 100) ** years)
+
+
+-- ── loans ───────────────────────────────────────────────
+
+--- The monthly payment on a loan: loan_payment(200000, 6, 30) is 1199.1
+fn loan_payment(principal, rate, years)
+    positive(principal, "loan_payment", "an amount borrowed")
+    positive(rate, "loan_payment", "a rate")
+    if not (years is number) or years <= 0
+        fail "loan_payment needs a number of years above 0, but got {years}."
+    let months = years * 12
+    if rate == 0 then return cents(principal / months)
+    let r = monthly(rate)
+    cents(principal * r / (1 - 1 / (1 + r) ** months))
+
+--- All the interest paid over the life of a loan: total_interest(200000, 6, 30) is 231676
+fn total_interest(principal, rate, years) => cents(loan_payment(principal, rate, years) * years * 12 - principal)
+
+--- How many months it takes to pay off a balance with a fixed monthly payment.
+fn payoff_months(balance, rate, payment)
+    positive(balance, "payoff_months", "a balance")
+    positive(rate, "payoff_months", "a rate")
+    positive(payment, "payoff_months", "a payment")
+    if balance == 0 then return 0
+    let r = monthly(rate)
+    if payment <= balance * r
+        let interest = cents(balance * r)
+        fail "A payment of {payment} doesn't even cover the monthly interest of {interest}, so it'd never be paid off."
+    var left = balance
+    var months = 0
+    while left > 0
+        left = left * (1 + r) - payment
+        months += 1
+    months
+
+
+-- ── savings ─────────────────────────────────────────────
+
+--- What regular monthly savings grow to, with interest added monthly: future_value(100, 6, 10) is 16387.93
+fn future_value(payment, rate, years)
+    positive(payment, "future_value", "a monthly payment")
+    positive(rate, "future_value", "a rate")
+    positive(years, "future_value", "a number of years")
+    let months = years * 12
+    if rate == 0 then return cents(payment * months)
+    let r = monthly(rate)
+    cents(payment * (((1 + r) ** months - 1) / r))
+
+
+test "interest"
+    expect compound(1000, 5, 10) == 1628.89
+    expect compound(1000, 5, 10, times_per_year: 12) == 1647.01
+    expect compound(1000, 0, 10) == 1000
+    expect simple_interest(1000, 5, 3) == 150
+    expect years_to_double(7) == 10.2
+    expect inflation_adjust(100, 3, 10) == 74.41
+
+test "loans"
+    expect loan_payment(200000, 6, 30) == 1199.1
+    expect loan_payment(1200, 0, 1) == 100
+    expect total_interest(200000, 6, 30) == 231676
+    expect payoff_months(1000, 12, 100) == 11
+    expect payoff_months(0, 12, 100) == 0
+
+test "savings"
+    expect future_value(100, 6, 10) == 16387.93
+    expect future_value(100, 0, 1) == 1200

@@ -1145,7 +1145,8 @@ class Library:
         self.name, self.env, self.doc, self.hidden = name, env, doc, set(hidden)
 
     def names(self):
-        return sorted(n for n in self.env.vars if n not in self.hidden)
+        # A library another library brought in with 'use' is its own business, so it isn't listed.
+        return sorted(n for n, v in self.env.vars.items() if n not in self.hidden and not isinstance(v, Library))
 
 class Instance:
     def __init__(self, shape):

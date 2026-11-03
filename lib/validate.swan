@@ -1,0 +1,178 @@
+--- Checking that text and numbers look right: emails, web addresses, dates, passwords and more.
+--- Every is_… tool gives back true or false and never fails, so it's safe to use on anything.
+--- Bring it in with:  use validate   (then validate.is_email("odette@lake.org"))
+--- or pick a few:     use is_email, require from validate
+
+
+-- ── little helpers ──────────────────────────────────────
+
+hidden fn is_letter(c) => upper(c) != lower(c)
+hidden fn is_digit(c) => c != "" and c in "0123456789"
+hidden fn all_digits(t) => t != "" and all(chars(t), is_digit)
+hidden fn digits_in(t) => count(chars(t), is_digit)
+hidden fn is_word_char(c) => is_letter(c) or is_digit(c) or c == "_"
+hidden fn plain(t) => if t is text then trim(t) else ""
+
+
+-- ── text that should look a certain way ─────────────────
+
+--- true for something shaped like an email address: one @, a name before it, a dot in the part after.
+fn is_email(t)
+    let s = plain(t)
+    let parts = split(s, "@")
+    if length(parts) != 2 or " " in s then return false
+    let name = parts[0]
+    let host = parts[1]
+    if name == "" or host == "" or not ("." in host) then return false
+    if starts_with(host, ".") or ends_with(host, ".") or ".." in host then return false
+    all(chars(host), c => is_word_char(c) or c in ".-")
+
+--- true if the text can be turned into a number: "42", "-3.5", " 7 ".
+fn is_number_text(t)
+    if not (t is text) or plain(t) == "" then return false
+    var ok = true
+    try
+        number(t)
+    otherwise problem
+        ok = false
+    ok
+
+--- true if the text is a whole number: "42" or "-7", but not "3.5".
+fn is_whole_text(t)
+    if not is_number_text(t) then return false
+    floor(number(t)) == number(t) and not ("." in plain(t))
+
+--- true for a web address that starts with http:// or https:// and has a dot in its host.
+fn is_url(t)
+    let s = plain(t)
+    if not (starts_with(s, "http://") or starts_with(s, "https://")) then return false
+    if " " in s then return false
+    let host = split(split(s, "//")[1], "/")[0]
+    host != "" and "." in host and not (starts_with(host, ".") or ends_with(host, "."))
+
+--- true for a phone number: 7 to 15 digits, with spaces, dashes, dots, brackets or a leading + allowed.
+fn is_phone(t)
+    let s = plain(t)
+    if s == "" then return false
+    let body = if starts_with(s, "+") then s[1..-1] else s
+    all(chars(body), c => is_digit(c) or c in " -().") and 7 <= digits_in(s) <= 15
+
+--- true for a real date written as "YYYY-MM-DD", so "2026-02-30" is false.
+fn is_date_text(t)
+    let parts = split(plain(t), "-")
+    if length(parts) != 3 then return false
+    if not (length(parts[0]) == 4 and length(parts[1]) == 2 and length(parts[2]) == 2) then return false
+    if not all(parts, all_digits) then return false
+    let y = number(parts[0])
+    let m = number(parts[1])
+    let d = number(parts[2])
+    if not (1 <= m <= 12) or y < 1 then return false
+    let leap = y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)
+    let longest = match m
+        2 => if leap then 29 else 28
+        4 or 6 or 9 or 11 => 30
+        _ => 31
+    1 <= d <= longest
+
+--- true for a time of day written as "HH:MM" on a 24-hour clock.
+fn is_time_text(t)
+    let parts = split(plain(t), ":")
+    if length(parts) != 2 or length(parts[0]) != 2 or length(parts[1]) != 2 then return false
+    if not all(parts, all_digits) then return false
+    0 <= number(parts[0]) <= 23 and 0 <= number(parts[1]) <= 59
+
+--- true for a colour like "#1a2b3c" or "#FFF".
+fn is_hex_color(t)
+    let s = plain(t)
+    if not starts_with(s, "#") or not (length(s) in [4, 7]) then return false
+    all(chars(lower(s[1..-1])), c => c in "0123456789abcdef")
+
+--- true for a username of letters, digits and underscores, between min and max characters long.
+fn is_username(t, min = 3, max = 20)
+    if not (t is text) then return false
+    min <= length(t) <= max and all(chars(t), is_word_char)
+
+--- "weak", "fair" or "strong", judged on length and the mix of small letters, capitals, digits and symbols.
+fn password_strength(t)
+    if not (t is text) then return "weak"
+    let cs = chars(t)
+    var kinds = 0
+    if any(cs, c => is_letter(c) and c == lower(c)) then kinds += 1
+    if any(cs, c => is_letter(c) and c == upper(c)) then kinds += 1
+    if any(cs, is_digit) then kinds += 1
+    if any(cs, c => not is_word_char(c)) then kinds += 1
+    if length(t) < 8 or kinds <= 1 then return "weak"
+    if length(t) >= 12 and kinds >= 3 then return "strong"
+    "fair"
+
+
+-- ── values ──────────────────────────────────────────────
+
+--- true if n is a number from low to high, ends included.
+fn is_between(n, low, high) => n is number and low <= n <= high
+
+--- true if value is one of the options: is_one_of("red", ["red", "green"])
+fn is_one_of(value, options)
+    if not (options is list) then return false
+    value in options
+
+--- Stops the program with your message when the condition is false. Handy at the top of a function.
+fn require(condition, message = "Something that should have been true wasn't.")
+    if not condition then fail message
+    true
+
+--- Runs every check on the value and gives back the messages of the ones that failed.
+--- Each check is a pair: problems("ab", [[is_email, "needs to be an email"], [t => length(t) > 5, "too short"]])
+fn problems(value, checks)
+    if not (checks is list)
+        fail "problems needs a list of [check, message] pairs."
+    var found = []
+    for pair in checks
+        if not (pair is list) or length(pair) != 2 or not (pair[0] is function)
+            fail "problems needs [check, message] pairs, like [is_email, \"needs to be an email\"]."
+        if not pair[0](value) then push(found, pair[1])
+    found
+
+
+test "emails and addresses"
+    expect is_email("odette@lake.org")
+    expect is_email(" pip@swan.co.uk ")
+    expect not is_email("odette@lake")
+    expect not is_email("@lake.org")
+    expect not is_email("two@at@lake.org")
+    expect not is_email(42)
+    expect is_url("https://swan.example.com/lake?x=1")
+    expect not is_url("swan.example.com")
+    expect not is_url("http://nodot")
+    expect is_phone("+44 20 7946 0958")
+    expect is_phone("(555) 123-4567")
+    expect not is_phone("12345")
+    expect not is_phone("55+5 1234567")
+
+test "numbers in text"
+    expect is_number_text("42") and is_number_text(" -3.5 ")
+    expect not is_number_text("forty") and not is_number_text("")
+    expect is_whole_text("42") and is_whole_text("-7")
+    expect not is_whole_text("3.5") and not is_whole_text("3.0")
+
+test "dates, times and colours"
+    expect is_date_text("2026-11-03") and is_date_text("2024-02-29")
+    expect not is_date_text("2026-02-30") and not is_date_text("2026-13-01") and not is_date_text("3/11/2026")
+    expect is_time_text("19:26") and is_time_text("00:00")
+    expect not is_time_text("24:00") and not is_time_text("9:30")
+    expect is_hex_color("#1a2b3c") and is_hex_color("#FFF")
+    expect not is_hex_color("1a2b3c") and not is_hex_color("#12345g")
+
+test "usernames and passwords"
+    expect is_username("odette_77")
+    expect not is_username("od") and not is_username("odette lake") and not is_username("a" * 21)
+    expect password_strength("swan") == "weak"
+    expect password_strength("swanlake1") == "fair"
+    expect password_strength("Swan-Lake-1877!") == "strong"
+
+test "values and requirements"
+    expect is_between(5, 1, 10) and not is_between("5", 1, 10)
+    expect is_one_of("red", ["red", "green"]) and not is_one_of("blue", ["red"])
+    expect require(1 < 2)
+    expect problems("ab", [[is_email, "needs to be an email"], [t => length(t) > 1, "too short"]]) == ["needs to be an email"]
+    expect problems("odette@lake.org", [[is_email, "needs to be an email"]]) == []

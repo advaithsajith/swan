@@ -1,0 +1,116 @@
+--- Shapes and space: points, areas, volumes and triangles.
+--- Bring it in with:  use geometry   (then geometry.circle_area(2))
+--- or pick a few:     use Point, triangle_area from geometry
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn positive(x, what, name)
+    if not (x is number)
+        fail "{what} needs a number for {name}, but got {type(x)}."
+    if x < 0
+        fail "{what} needs {name} to be 0 or more, but got {x}."
+    x
+
+hidden fn a_point(p, what)
+    if not (p is Point)
+        fail "{what} needs a Point, like Point(1, 2), but got {type(p)}."
+    p
+
+
+-- ── points ──────────────────────────────────────────────
+
+--- A spot on a flat surface, x across and y up.
+shape Point(x, y)
+    --- The straight-line distance to another point.
+    fn distance_to(other)
+        a_point(other, "distance_to")
+        sqrt((other.x - x) ** 2 + (other.y - y) ** 2)
+
+    --- The point exactly halfway to another point.
+    fn midpoint(other)
+        a_point(other, "midpoint")
+        Point((x + other.x) / 2, (y + other.y) / 2)
+
+
+-- ── flat shapes ─────────────────────────────────────────
+
+--- The area inside a circle.
+fn circle_area(radius) => pi * positive(radius, "circle_area", "the radius") ** 2
+
+--- The distance around a circle.
+fn circle_circumference(radius) => 2 * pi * positive(radius, "circle_circumference", "the radius")
+
+--- The area of a rectangle.
+fn rectangle_area(width, height)
+    positive(width, "rectangle_area", "the width") * positive(height, "rectangle_area", "the height")
+
+--- The area of a triangle from its base and height.
+fn triangle_area(base, height)
+    positive(base, "triangle_area", "the base") * positive(height, "triangle_area", "the height") / 2
+
+--- The area of a triangle from its three sides (Heron's formula).
+fn heron(a, b, c)
+    positive(a, "heron", "each side")
+    positive(b, "heron", "each side")
+    positive(c, "heron", "each side")
+    if a + b <= c or a + c <= b or b + c <= a
+        fail "No triangle has sides {a}, {b} and {c}: two of them together must be longer than the third."
+    let s = (a + b + c) / 2
+    sqrt(s * (s - a) * (s - b) * (s - c))
+
+--- true if three sides make a right-angled triangle, in any order: is_right_triangle(3, 4, 5)
+fn is_right_triangle(a, b, c)
+    let sides = sort([positive(a, "is_right_triangle", "each side"), positive(b, "is_right_triangle", "each side"),
+                      positive(c, "is_right_triangle", "each side")])
+    if sides[0] == 0 then return false
+    round(sides[0] ** 2 + sides[1] ** 2, 9) == round(sides[2] ** 2, 9)
+
+--- The area of any shape with straight sides, from its corners in order (the shoelace formula).
+fn polygon_area(points)
+    if not (points is list) or length(points) < 3
+        fail "polygon_area needs a list of at least three Points."
+    var total = 0
+    for i, p in points
+        a_point(p, "polygon_area")
+        let q = points[(i + 1) % length(points)]
+        a_point(q, "polygon_area")
+        total += p.x * q.y - q.x * p.y
+    abs(total) / 2
+
+
+-- ── solid shapes ────────────────────────────────────────
+
+--- The space inside a ball.
+fn sphere_volume(radius) => 4 / 3 * pi * positive(radius, "sphere_volume", "the radius") ** 3
+
+--- The space inside a cube.
+fn cube_volume(side) => positive(side, "cube_volume", "the side") ** 3
+
+--- The space inside a cylinder, like a tin can.
+fn cylinder_volume(radius, height)
+    pi * positive(radius, "cylinder_volume", "the radius") ** 2 * positive(height, "cylinder_volume", "the height")
+
+--- The space inside a cone, a third of the cylinder it would fit in.
+fn cone_volume(radius, height) => cylinder_volume(radius, height) / 3
+
+
+test "points"
+    expect Point(0, 0).distance_to(Point(3, 4)) == 5
+    expect Point(0, 0).midpoint(Point(2, 4)) == Point(1, 2)
+
+test "flat shapes"
+    expect round(circle_area(1), 4) == 3.1416
+    expect round(circle_circumference(1), 4) == 6.2832
+    expect rectangle_area(3, 4) == 12
+    expect triangle_area(10, 3) == 15
+    expect heron(3, 4, 5) == 6
+    expect is_right_triangle(5, 3, 4)
+    expect not is_right_triangle(2, 3, 4)
+    expect polygon_area([Point(0, 0), Point(4, 0), Point(4, 3), Point(0, 3)]) == 12
+
+test "solid shapes"
+    expect round(sphere_volume(1), 4) == 4.1888
+    expect cube_volume(3) == 27
+    expect round(cylinder_volume(1, 2), 4) == 6.2832
+    expect round(cone_volume(1, 3), 4) == 3.1416

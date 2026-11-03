@@ -1,0 +1,117 @@
+--- Filling in the blanks: text with {name} placeholders, filled from a map.
+--- Handy when the wording lives in a file or a variable rather than in your code.
+--- Bring it in with:  use template   (then template.fill("Dear \{name},", {name: "Odette"}))
+--- or pick a few:     use fill, placeholders from template
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn some_text(t, what)
+    if not (t is text)
+        fail "{what} needs text, but got {type(t)}."
+    t
+
+hidden fn a_map(values, what)
+    if not (values is map)
+        fail "{what} needs a map of name: value, like \{name: \"Odette\"\}."
+    values
+
+hidden fn marks(open, close)
+    if not (open is text) or not (close is text) or open == "" or close == ""
+        fail "The open and close marks need to be text, like open: \"[\", close: \"]\"."
+
+--- Walks the text and gives back [plain text or placeholder name, is_placeholder] pieces.
+hidden fn pieces(t, open, close)
+    var out = []
+    var plain = ""
+    var left = t
+    while left != ""
+        let parts = split(left, open)
+        if length(parts) == 1
+            plain += left
+            left = ""
+        else
+            plain += parts[0]
+            let after = join(rest_of(parts), open)
+            let closing = split(after, close)
+            if length(closing) == 1
+                plain += open + after
+                left = ""
+            else
+                if plain != "" then push(out, [plain, false])
+                plain = ""
+                push(out, [trim(closing[0]), true])
+                left = join(rest_of(closing), close)
+    if plain != "" then push(out, [plain, false])
+    out
+
+hidden fn rest_of(parts)
+    if length(parts) <= 1 then return []
+    [parts[i] for i in 1..<length(parts)]
+
+
+-- ── looking at a template ───────────────────────────────
+
+--- The names of the placeholders in the text, in order, each once: placeholders("Hi \{name\}") is ["name"]
+fn placeholders(t, open = "\{", close = "\}")
+    some_text(t, "placeholders")
+    marks(open, close)
+    unique([p[0] for p in pieces(t, open, close) if p[1]])
+
+--- The placeholders that the map has no value for.
+fn missing(t, values, open = "\{", close = "\}")
+    a_map(values, "missing")
+    keep(placeholders(t, open: open, close: close), name => not has(values, name))
+
+
+-- ── filling in ──────────────────────────────────────────
+
+--- Puts the map's values into the placeholders: fill("Hi \{name\}!", {name: "Odette"}) is "Hi Odette!"
+--- A placeholder with no value is a problem, unless you give a fallback: "?"
+--- Other marks work too: fill("Hi [name]", {name: "Pip"}, open: "[", close: "]")
+fn fill(t, values, fallback = nothing, open = "\{", close = "\}")
+    some_text(t, "fill")
+    a_map(values, "fill")
+    marks(open, close)
+    var out = ""
+    for p in pieces(t, open, close)
+        if not p[1]
+            out += p[0]
+        elif has(values, p[0])
+            out += text(values[p[0]])
+        elif fallback != nothing
+            out += text(fallback)
+        else
+            fail "fill has no value for the placeholder '{p[0]}'. The map has: {join(keys(values), ", ")}"
+    out
+
+--- Fills several templates with the same values: fill_all(["Hi \{a\}", "Bye \{a\}"], {a: "Pip"})
+fn fill_all(texts, values, fallback = nothing, open = "\{", close = "\}")
+    if not (texts is list)
+        fail "fill_all needs a list of texts, but got {type(texts)}."
+    [fill(t, values, fallback: fallback, open: open, close: close) for t in texts]
+
+--- Fills one template once per map: fill_each("Hi \{name\}", [{name: "Odette"}, {name: "Pip"}])
+fn fill_each(t, maps, fallback = nothing, open = "\{", close = "\}")
+    if not (maps is list)
+        fail "fill_each needs a list of maps, but got {type(maps)}."
+    [fill(t, values, fallback: fallback, open: open, close: close) for values in maps]
+
+
+test "placeholders"
+    expect placeholders("Dear \{name\}, your \{item\} is ready, \{name\}.") == ["name", "item"]
+    expect placeholders("no blanks here") == []
+    expect placeholders("Hi [who]", open: "[", close: "]") == ["who"]
+    expect missing("\{a\} \{b\}", {a: 1}) == ["b"]
+
+test "filling in"
+    expect fill("Hi \{name\}!", {name: "Odette"}) == "Hi Odette!"
+    expect fill("\{n\} swans", {n: 3}) == "3 swans"
+    expect fill("Hi \{ name \}", {name: "Pip"}) == "Hi Pip"
+    expect fill("Hi \{name\}", {}, fallback: "?") == "Hi ?"
+    expect fill("Hi [name]", {name: "Pip"}, open: "[", close: "]") == "Hi Pip"
+    expect fill("an open \{ brace", {}) == "an open \{ brace"
+
+test "many at once"
+    expect fill_all(["Hi \{a\}", "Bye \{a\}"], {a: "Pip"}) == ["Hi Pip", "Bye Pip"]
+    expect fill_each("\{name\}!", [{name: "Odette"}, {name: "Odile"}]) == ["Odette!", "Odile!"]

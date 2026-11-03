@@ -1,0 +1,90 @@
+--- State machines: a thing that is always in exactly one state, and moves between states on events.
+--- Describe the moves as a map of state: {event: next_state}, then go("event") to move.
+--- Bring it in with:  use machine   (then let light = machine.traffic_light())
+--- or pick a few:     use Machine from machine
+
+
+--- A state machine. start is the first state; transitions says which event leads where from each state:
+--- Machine("closed", {closed: {open: "open", lock: "locked"}, open: {close: "closed"}, locked: {unlock: "closed"}})
+shape Machine(start, transitions, state = nothing, history = [])
+    --- Every state the machine knows about.
+    fn states()
+        var found = keys(transitions)
+        for from_state, moves in transitions
+            for event, to_state in moves
+                if to_state not in found then push(found, to_state)
+        found
+
+    --- The events allowed from the state the machine is in now.
+    fn events() => keys(get(transitions, current(), {}))
+
+    --- true if this event is allowed right now.
+    fn can(event) => event in events()
+
+    --- Moves to the next state for this event, and gives back the new state. Fails if the event isn't allowed.
+    fn go(event)
+        let now_in = current()
+        if not can(event)
+            let allowed = events()
+            let hint = if length(allowed) == 0 then "Nothing leads anywhere from here." else "From here you can: {join(allowed, ", ")}."
+            fail "'{event}' isn't allowed while {start_name()} is {now_in}. {hint}"
+        state = transitions[now_in][event]
+        push(history, state)
+        state
+
+    --- Goes back to the start state and forgets the history.
+    fn reset()
+        state = start
+        history = [start]
+        state
+
+    --- The states visited so far, like "green → amber → red".
+    fn show() => join(path(), " → ")
+
+    hidden fn current()
+        if state == nothing then reset()
+        state
+
+    hidden fn path() => if length(history) == 0 then [start] else history
+    hidden fn start_name() => "the machine"
+
+
+-- ── ready-made machines ─────────────────────────────────
+
+--- A traffic light: green, amber, red, round and round on the event "next".
+fn traffic_light()
+    Machine("green", {green: {next: "amber"}, amber: {next: "red"}, red: {next: "green"}})
+
+--- A door that can be open, closed or locked: events open, close, lock and unlock.
+fn door()
+    Machine("closed", {
+        closed: {open: "open", lock: "locked"},
+        open: {close: "closed"},
+        locked: {unlock: "closed"},
+    })
+
+
+test "a traffic light goes round"
+    let light = traffic_light()
+    expect light.reset() == "green"
+    expect light.events() == ["next"]
+    expect light.go("next") == "amber"
+    expect light.go("next") == "red"
+    expect light.go("next") == "green"
+    expect light.show() == "green → amber → red → green"
+    expect sort(light.states()) == ["amber", "green", "red"]
+
+test "a door refuses the wrong moves"
+    let d = door()
+    expect d.can("open") and not d.can("unlock")
+    d.go("lock")
+    var problem = ""
+    try
+        d.go("open")
+    otherwise p
+        problem = text(p)
+    expect "unlock" in problem
+    expect d.go("unlock") == "closed"
+    expect d.show() == "closed → locked → closed"
+    d.reset()
+    expect d.show() == "closed"

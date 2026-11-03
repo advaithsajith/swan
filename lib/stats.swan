@@ -1,0 +1,150 @@
+--- Statistics beyond the average: spread, percentiles, correlation and summaries.
+--- (The maths library has median, mode, spread and a simple deviation.)
+--- Bring it in with:  use stats   (then stats.summary(scores))
+--- or pick a few:     use percentile, correlation from stats
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn numbers(values, what, least = 1)
+    let items = if values is range then map(values, x => x) else values
+    if not (items is list)
+        fail "{what} needs a list of numbers, but got {type(values)}."
+    if length(items) < least
+        fail "{what} needs at least {least} numbers, but the list has {length(items)}."
+    for v in items
+        if not (v is number)
+            fail "{what} needs a list of numbers, but the list has {type(v)} in it."
+    items
+
+hidden fn paired(xs, ys, what)
+    let a = numbers(xs, what, least: 2)
+    let b = numbers(ys, what, least: 2)
+    if length(a) != length(b)
+        fail "{what} needs two lists of the same length, but got {length(a)} and {length(b)}."
+    [a, b]
+
+hidden fn middle(sorted)
+    let mid = length(sorted) // 2
+    if length(sorted) % 2 == 1 then return sorted[mid]
+    (sorted[mid - 1] + sorted[mid]) / 2
+
+
+-- ── spread ──────────────────────────────────────────────
+
+--- How spread out the numbers are: the average of the squared distances from the mean.
+--- sample: true (the default) is for a sample of a bigger group; sample: false for the whole group.
+fn variance(values, sample = true)
+    let items = numbers(values, "variance", least: if sample then 2 else 1)
+    let mean = average(items)
+    sum(map(items, v => (v - mean) ** 2)) / (length(items) - (if sample then 1 else 0))
+
+--- The standard deviation: the typical distance from the mean, in the same units as the numbers.
+fn deviation(values, sample = true) => sqrt(variance(values, sample: sample))
+
+--- The value that p percent of the numbers sit below: percentile(scores, 90)
+fn percentile(values, p)
+    let items = sort(numbers(values, "percentile"))
+    if not (p is number) or not (0 <= p <= 100)
+        fail "percentile needs a percent from 0 to 100, but got {p}."
+    let spot = p / 100 * (length(items) - 1)
+    let low = floor(spot)
+    if low == length(items) - 1 then return items[low]
+    items[low] + (items[low + 1] - items[low]) * (spot - low)
+
+--- The three quarter marks of the numbers: [lower quartile, median, upper quartile].
+fn quartiles(values)
+    let items = sort(numbers(values, "quartiles", least: 2))
+    let half = length(items) // 2
+    let lower = [items[i] for i in 0..<half]
+    let upper = [items[i] for i in (length(items) - half)..<length(items)]
+    [middle(lower), middle(items), middle(upper)]
+
+--- The interquartile range: how far apart the middle half of the numbers are.
+fn iqr(values)
+    let q = quartiles(values)
+    q[2] - q[0]
+
+--- Each number as how many standard deviations it is from the mean.
+fn z_scores(values)
+    let items = numbers(values, "z_scores", least: 2)
+    let mean = average(items)
+    let sd = deviation(items, sample: false)
+    if sd == 0
+        fail "z_scores can't work when every number is the same."
+    map(items, v => (v - mean) / sd)
+
+
+-- ── two lists together ──────────────────────────────────
+
+--- How two lists of numbers move together, from -1 (opposite) through 0 (unrelated) to 1 (together).
+fn correlation(xs, ys)
+    let pair = paired(xs, ys, "correlation")
+    let sx = deviation(pair[0], sample: false)
+    let sy = deviation(pair[1], sample: false)
+    if sx == 0 or sy == 0
+        fail "correlation needs numbers that vary, but one list is all the same."
+    covariance(xs, ys, sample: false) / (sx * sy)
+
+--- How much two lists of numbers vary together.
+fn covariance(xs, ys, sample = true)
+    let pair = paired(xs, ys, "covariance")
+    let mx = average(pair[0])
+    let my = average(pair[1])
+    let total = sum([(pair[0][i] - mx) * (pair[1][i] - my) for i in 0..<length(pair[0])])
+    total / (length(pair[0]) - (if sample then 1 else 0))
+
+
+-- ── reshaping numbers ───────────────────────────────────
+
+--- Smooths a list by averaging each window of numbers: moving_average([1, 2, 3, 4], 2) is [1.5, 2.5, 3.5]
+fn moving_average(values, window)
+    let items = numbers(values, "moving_average")
+    if not (window is number) or floor(window) != window or window < 1
+        fail "moving_average needs a window of 1 or more, but got {window}."
+    if window > length(items)
+        fail "moving_average's window ({window}) is bigger than the list ({length(items)})."
+    [average([items[i + k] for k in 0..<window]) for i in 0..(length(items) - window)]
+
+--- Squeezes the numbers into the range 0 to 1, with the smallest at 0 and the biggest at 1.
+fn normalize(values)
+    let items = numbers(values, "normalize")
+    let low = min(items)
+    let span = max(items) - low
+    if span == 0 then return map(items, v => 0)
+    map(items, v => (v - low) / span)
+
+--- The headline numbers in one map: {count, min, max, mean, median, deviation}
+fn summary(values)
+    let items = numbers(values, "summary")
+    let sd = if length(items) > 1 then deviation(items) else 0
+    {count: length(items), min: min(items), max: max(items), mean: average(items),
+     median: middle(sort(items)), deviation: sd}
+
+
+test "spread"
+    expect variance([2, 4, 4, 4, 5, 5, 7, 9], sample: false) == 4
+    expect deviation([2, 4, 4, 4, 5, 5, 7, 9], sample: false) == 2
+    expect round(variance([2, 4, 4, 4, 5, 5, 7, 9]), 4) == 4.5714
+    expect percentile([1, 2, 3, 4, 5], 50) == 3
+    expect percentile([1, 2, 3, 4], 50) == 2.5
+    expect percentile([10, 20, 30], 100) == 30
+    expect quartiles([1, 2, 3, 4, 5, 6, 7, 8]) == [2.5, 4.5, 6.5]
+    expect quartiles([1, 2, 3, 4, 5]) == [1.5, 3, 4.5]
+    expect iqr([1, 2, 3, 4, 5, 6, 7, 8]) == 4
+    expect map(z_scores([1, 2, 3]), z => round(z, 4)) == [-1.2247, 0, 1.2247]
+
+test "two lists together"
+    expect correlation([1, 2, 3], [2, 4, 6]) == 1
+    expect correlation([1, 2, 3], [6, 4, 2]) == -1
+    expect round(correlation([1, 2, 3, 4], [1, 3, 2, 4]), 4) == 0.8
+    expect covariance([1, 2, 3], [2, 4, 6]) == 2
+
+test "reshaping numbers"
+    expect moving_average([1, 2, 3, 4], 2) == [1.5, 2.5, 3.5]
+    expect moving_average([5, 5], 2) == [5]
+    expect normalize([10, 20, 30]) == [0, 0.5, 1]
+    expect normalize([4, 4]) == [0, 0]
+    let s = summary([2, 4, 4, 4, 5, 5, 7, 9])
+    expect [s.count, s.min, s.max, s.mean, s.median] == [8, 2, 9, 5, 4.5]
+    expect round(s.deviation, 4) == 2.1381

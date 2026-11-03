@@ -1,0 +1,120 @@
+--- Vectors: arrows with a length and a direction, for movement, forces and games.
+--- Bring it in with:  use vectors   (then vectors.Vec(3, 4).magnitude())
+--- or pick a few:     use Vec, distance from vectors
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_vec(v, what)
+    if not (v is Vec)
+        fail "{what} needs a Vec, like Vec(1, 2), but got {type(v)}."
+    v
+
+hidden fn a_number(x, what)
+    if not (x is number)
+        fail "{what} needs a number, but got {type(x)}."
+    x
+
+hidden fn tidy(x)
+    let r = round(x, 10)
+    if r == floor(r) then return floor(r)
+    r
+
+--- The angle whose tangent is x, in radians (a series, so this library stands on its own).
+hidden fn arctan(x)
+    if x < 0 then return -arctan(-x)
+    if x > 1 then return pi / 2 - arctan(1 / x)
+    if x > 0.5 then return 2 * arctan(x / (1 + sqrt(1 + x * x)))
+    var term = x
+    var total = x
+    var n = 1
+    while abs(term) > 0.000000000000001 and n < 200
+        term = -term * x * x
+        total += term / (2 * n + 1)
+        n += 1
+    total
+
+hidden fn arctan2(y, x)
+    if x > 0 then return arctan(y / x)
+    if x < 0 and y >= 0 then return arctan(y / x) + pi
+    if x < 0 then return arctan(y / x) - pi
+    if y > 0 then return pi / 2
+    if y < 0 then return -pi / 2
+    0
+
+
+-- ── the shape ───────────────────────────────────────────
+
+--- A vector with an x part and a y part.
+shape Vec(x, y)
+    --- This vector plus another: Vec(1, 2).add(Vec(3, 4)) is Vec(4, 6)
+    fn add(other)
+        a_vec(other, "add")
+        Vec(x + other.x, y + other.y)
+
+    --- This vector minus another.
+    fn subtract(other)
+        a_vec(other, "subtract")
+        Vec(x - other.x, y - other.y)
+
+    --- The vector stretched k times longer (or shorter, for k below 1).
+    fn scale(k)
+        a_number(k, "scale")
+        Vec(x * k, y * k)
+
+    --- The dot product: how much two vectors point the same way.
+    fn dot(other)
+        a_vec(other, "dot")
+        x * other.x + y * other.y
+
+    --- The length of the vector.
+    fn magnitude() => sqrt(x * x + y * y)
+
+    --- The same direction with a length of exactly 1.
+    fn normalized()
+        let m = magnitude()
+        if m == 0
+            fail "A zero vector has no direction, so it can't be normalized."
+        Vec(x / m, y / m)
+
+    --- The angle between this vector and another, in degrees, from 0 to 180.
+    fn angle_to(other)
+        a_vec(other, "angle_to")
+        if magnitude() == 0 or other.magnitude() == 0
+            fail "A zero vector has no direction, so there's no angle to measure."
+        let cross = x * other.y - y * other.x
+        tidy(abs(arctan2(cross, dot(other))) * 180 / pi)
+
+    --- The vector as text: "(1, 2)"
+    fn show() => "({x}, {y})"
+
+
+--- The distance between the tips of two vectors.
+fn distance(a, b) => a_vec(a, "distance").subtract(a_vec(b, "distance")).magnitude()
+
+--- The vector a fraction t of the way from a to b: lerp(Vec(0, 0), Vec(10, 10), 0.5) is Vec(5, 5)
+fn lerp(a, b, t)
+    a_vec(a, "lerp")
+    a_vec(b, "lerp")
+    a_number(t, "lerp")
+    a.add(b.subtract(a).scale(t))
+
+
+test "arithmetic"
+    expect Vec(1, 2).add(Vec(3, 4)) == Vec(4, 6)
+    expect Vec(3, 4).subtract(Vec(1, 1)) == Vec(2, 3)
+    expect Vec(1, 2).scale(3) == Vec(3, 6)
+    expect Vec(1, 2).dot(Vec(3, 4)) == 11
+    expect Vec(1, 2).show() == "(1, 2)"
+
+test "length and direction"
+    expect Vec(3, 4).magnitude() == 5
+    expect Vec(0, 5).normalized() == Vec(0, 1)
+    expect Vec(1, 0).angle_to(Vec(0, 1)) == 90
+    expect Vec(1, 0).angle_to(Vec(-1, 0)) == 180
+    expect Vec(1, 1).angle_to(Vec(2, 2)) == 0
+    expect Vec(1, 0).angle_to(Vec(1, 1)) == 45
+
+test "between vectors"
+    expect distance(Vec(0, 0), Vec(3, 4)) == 5
+    expect lerp(Vec(0, 0), Vec(10, 10), 0.5) == Vec(5, 5)

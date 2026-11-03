@@ -1,0 +1,147 @@
+--- Angles and triangles: sin, cos and tan, their opposites, and turning degrees into radians.
+--- Angles are in radians unless a tool says otherwise. pi is built in: sin(pi / 2) is 1.
+--- Bring it in with:  use trig   (then trig.sin(trig.radians(30)))
+--- or pick a few:     use sin, cos, degrees from trig
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_number(x, what)
+    if not (x is number)
+        fail "{what} works on numbers, but got {type(x)}."
+    x
+
+--- Brings an angle into the range -pi..pi, where the series are accurate.
+hidden fn reduce(angle)
+    var a = angle % (2 * pi)
+    if a > pi then a -= 2 * pi
+    a
+
+--- Rounds away the tiny errors a series leaves, so sin(pi) is 0 and not 0.0000000000001.
+hidden fn tidy(x)
+    let r = round(x, 12)
+    if r == floor(r) then return floor(r)
+    r
+
+
+-- ── the main three ──────────────────────────────────────
+
+--- The sine of an angle in radians.
+fn sin(angle)
+    let x = reduce(a_number(angle, "sin"))
+    var term = x
+    var total = x
+    var n = 1
+    while abs(term) > 0.000000000000001 and n < 60
+        term = -term * x * x / ((2 * n) * (2 * n + 1))
+        total += term
+        n += 1
+    tidy(total)
+
+--- The cosine of an angle in radians.
+fn cos(angle)
+    let x = reduce(a_number(angle, "cos"))
+    var term = 1
+    var total = 1
+    var n = 1
+    while abs(term) > 0.000000000000001 and n < 60
+        term = -term * x * x / ((2 * n - 1) * (2 * n))
+        total += term
+        n += 1
+    tidy(total)
+
+--- The tangent of an angle in radians. It has no answer at pi / 2, where it shoots off to infinity.
+fn tan(angle)
+    let c = cos(a_number(angle, "tan"))
+    if c == 0
+        fail "tan has no answer at this angle: it heads off to infinity."
+    tidy(sin(angle) / c)
+
+
+-- ── degrees and radians ─────────────────────────────────
+
+--- Turns radians into degrees: degrees(pi) is 180
+fn degrees(radians_in) => tidy(a_number(radians_in, "degrees") * 180 / pi)
+
+--- Turns degrees into radians: radians(180) is pi
+fn radians(degrees_in) => a_number(degrees_in, "radians") * pi / 180
+
+
+-- ── going backwards ─────────────────────────────────────
+
+--- The angle (in radians) whose tangent is x. Between -pi / 2 and pi / 2.
+fn atan(x)
+    a_number(x, "atan")
+    if x < 0 then return -atan(-x)
+    if x > 1 then return pi / 2 - atan(1 / x)
+    -- for 0 <= x <= 1, halve the angle so the series converges quickly
+    if x > 0.5 then return 2 * atan(x / (1 + sqrt(1 + x * x)))
+    var term = x
+    var total = x
+    var n = 1
+    while abs(term) > 0.000000000000001 and n < 200
+        term = -term * x * x
+        total += term / (2 * n + 1)
+        n += 1
+    tidy(total)
+
+--- The angle (in radians) of the point (x, y) from the positive x axis, between -pi and pi.
+fn atan2(y, x)
+    a_number(y, "atan2")
+    a_number(x, "atan2")
+    if x > 0 then return atan(y / x)
+    if x < 0 and y >= 0 then return tidy(atan(y / x) + pi)
+    if x < 0 then return tidy(atan(y / x) - pi)
+    if y > 0 then return pi / 2
+    if y < 0 then return -pi / 2
+    0
+
+--- The angle (in radians) whose sine is x. x must be between -1 and 1.
+fn asin(x)
+    a_number(x, "asin")
+    if not (-1 <= x <= 1)
+        fail "asin needs a number from -1 to 1, but got {x}."
+    if x == 1 then return pi / 2
+    if x == -1 then return -pi / 2
+    tidy(atan(x / sqrt(1 - x * x)))
+
+--- The angle (in radians) whose cosine is x. x must be between -1 and 1.
+fn acos(x)
+    a_number(x, "acos")
+    if not (-1 <= x <= 1)
+        fail "acos needs a number from -1 to 1, but got {x}."
+    tidy(pi / 2 - asin(x))
+
+--- The long side of a right-angled triangle from the other two: hypot(3, 4) is 5
+fn hypot(a, b) => sqrt(a_number(a, "hypot") ** 2 + a_number(b, "hypot") ** 2)
+
+
+test "sin and cos"
+    expect sin(0) == 0
+    expect round(sin(pi / 2), 9) == 1
+    expect round(sin(pi / 6), 9) == 0.5
+    expect round(sin(pi), 9) == 0
+    expect cos(0) == 1
+    expect round(cos(pi), 9) == -1
+    expect round(cos(pi / 3), 9) == 0.5
+    expect round(sin(100), 9) == round(sin(100 - 32 * pi), 9)
+
+test "tan"
+    expect round(tan(pi / 4), 9) == 1
+    expect round(tan(radians(60)), 6) == round(sqrt(3), 6)
+
+test "degrees and radians"
+    expect degrees(pi) == 180
+    expect round(radians(90), 9) == round(pi / 2, 9)
+    expect round(degrees(radians(45)), 9) == 45
+
+test "going backwards"
+    expect round(atan(1), 9) == round(pi / 4, 9)
+    expect round(atan(-1), 9) == round(-pi / 4, 9)
+    expect round(atan2(1, -1), 9) == round(3 * pi / 4, 9)
+    expect round(atan2(-1, 0), 9) == round(-pi / 2, 9)
+    expect round(asin(1), 9) == round(pi / 2, 9)
+    expect round(asin(0.5), 9) == round(pi / 6, 9)
+    expect round(acos(0), 9) == round(pi / 2, 9)
+    expect round(acos(-1), 9) == round(pi, 9)
+    expect hypot(3, 4) == 5

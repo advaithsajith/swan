@@ -1,0 +1,135 @@
+--- Word games: anagrams, pangrams, Scrabble scores, rhymes and letter counting.
+--- Bring it in with:  use wordplay   (then wordplay.is_anagram("listen", "silent"))
+--- or pick a few:     use scrabble_score, is_pangram from wordplay
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn some_text(t, what)
+    if not (t is text)
+        fail "{what} works on text, but got {type(t)}."
+    t
+
+hidden fn is_letter(c) => upper(c) != lower(c)
+
+--- Just the letters, all small: letters("Swan Lake!") is "swanlake"
+hidden fn letters(t) => join(keep(chars(lower(t)), is_letter))
+
+hidden fn clean_words(t) => words(t) |> map(letters) |> keep(w => w != "")
+
+
+-- ── anagrams ────────────────────────────────────────────
+
+--- A word's letters in alphabetical order: alphabetical("swan") is "answ"
+fn alphabetical(word) => join(sort(chars(letters(some_text(word, "alphabetical")))))
+
+--- true if two words use exactly the same letters: is_anagram("Listen", "Silent")
+fn is_anagram(a, b)
+    some_text(a, "is_anagram")
+    some_text(b, "is_anagram")
+    let left = alphabetical(a)
+    left != "" and left == alphabetical(b) and letters(a) != letters(b)
+
+--- The candidates that are anagrams of the word: anagrams("tar", ["rat", "art", "car"]) is ["rat", "art"]
+fn anagrams(word, candidates)
+    some_text(word, "anagrams")
+    if not (candidates is list)
+        fail "anagrams needs a list of words to look through, but got {type(candidates)}."
+    keep(candidates, c => c is text and is_anagram(word, c))
+
+
+-- ── letters ─────────────────────────────────────────────
+
+--- true if the text uses every letter of the alphabet at least once.
+fn is_pangram(t) => length(unique(chars(letters(some_text(t, "is_pangram"))))) == 26
+
+--- true if no letter appears twice: is_isogram("lumberjack")
+fn is_isogram(word)
+    let found = chars(letters(some_text(word, "is_isogram")))
+    length(found) > 0 and length(unique(found)) == length(found)
+
+--- How many times each letter appears, in the order they first show up:
+--- letter_frequency("swans") is {s: 2, w: 1, a: 1, n: 1}
+fn letter_frequency(t)
+    var counts = {}
+    for c in chars(letters(some_text(t, "letter_frequency")))
+        counts[c] = get(counts, c, 0) + 1
+    counts
+
+--- What a word scores in Scrabble: scrabble_score("quiz") is 22
+fn scrabble_score(word)
+    let values = {a: 1, b: 3, c: 3, d: 2, e: 1, f: 4, g: 2, h: 4, i: 1, j: 8, k: 5, l: 1, m: 3,
+                  n: 1, o: 1, p: 3, q: 10, r: 1, s: 1, t: 1, u: 1, v: 4, w: 4, x: 8, y: 4, z: 10}
+    var total = 0
+    for c in chars(letters(some_text(word, "scrabble_score")))
+        total += get(values, c, 0)
+    total
+
+--- true if the word's letters appear in order inside the text (with gaps allowed): hidden_word("the swan", "tan")
+fn hidden_word(t, word)
+    let haystack = letters(some_text(t, "hidden_word"))
+    let needle = letters(some_text(word, "hidden_word"))
+    if needle == "" then return false
+    var at = 0
+    for c in haystack
+        if at < length(needle) and c == needle[at] then at += 1
+    at == length(needle)
+
+
+-- ── words ───────────────────────────────────────────────
+
+--- The longest word in the text (the first one, if there's a tie). Punctuation doesn't count.
+fn longest_word(t)
+    let found = clean_words(some_text(t, "longest_word"))
+    if length(found) == 0
+        fail "longest_word needs some words, but the text has none."
+    var best = found[0]
+    for w in found
+        if length(w) > length(best) then best = w
+    best
+
+--- How many words there are of each length: word_lengths("a swan on a lake") is {1: 2, 4: 2, 2: 1}
+fn word_lengths(t)
+    var counts = {}
+    for w in clean_words(some_text(t, "word_lengths"))
+        counts[length(w)] = get(counts, length(w), 0) + 1
+    counts
+
+--- A rough rhyme check: true if two different words end the same way
+--- (their last three letters, or two for short words).
+fn rhymes_with(a, b)
+    let left = letters(some_text(a, "rhymes_with"))
+    let right = letters(some_text(b, "rhymes_with"))
+    if left == right or left == "" or right == "" then return false
+    let size = if length(left) >= 4 and length(right) >= 4 then 3 else 2
+    if length(left) < size or length(right) < size then return false
+    ending(left, size) == ending(right, size)
+
+hidden fn ending(w, size) => join([w[i] for i in (length(w) - size)..<length(w)])
+
+
+test "anagrams"
+    expect alphabetical("swan") == "answ"
+    expect is_anagram("Listen", "Silent")
+    expect not is_anagram("swan", "swans")
+    expect not is_anagram("swan", "swan")
+    expect anagrams("tar", ["rat", "art", "car", "tar"]) == ["rat", "art"]
+
+test "letters"
+    expect is_pangram("The quick brown fox jumps over the lazy dog")
+    expect not is_pangram("swan lake")
+    expect is_isogram("lumberjack")
+    expect not is_isogram("swans")
+    expect letter_frequency("swans") == {s: 2, w: 1, a: 1, n: 1}
+    expect scrabble_score("swan") == 7
+    expect scrabble_score("quiz") == 22
+    expect hidden_word("the swan", "tan")
+    expect not hidden_word("swan", "wax")
+
+test "words"
+    expect longest_word("the swan glides gracefully.") == "gracefully"
+    expect word_lengths("a swan on a lake") == {1: 2, 4: 2, 2: 1}
+    expect rhymes_with("night", "light")
+    expect rhymes_with("cat", "hat")
+    expect not rhymes_with("cat", "cat")
+    expect not rhymes_with("swan", "duck")

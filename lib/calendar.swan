@@ -1,0 +1,134 @@
+--- Calendars: a month drawn as text, the weeks of a month, countdowns and the date of Easter.
+--- Weeks start on Monday. Times are in seconds, like now() and the clock library use.
+--- Bring it in with:  use calendar   (then say calendar.month(2026, 11))
+--- or pick a few:     use month, countdown from calendar
+
+use clock
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn whole(n, what, low, high)
+    if not (n is number) or floor(n) != n or not (low <= n <= high)
+        fail "{what} needs a whole number from {low} to {high}, but got {n}."
+
+--- 0 for Monday up to 6 for Sunday.
+hidden fn index_of(xs, item)
+    for i, x in xs
+        if x == item then return i
+    nothing
+
+hidden fn weekday_number(year, m, d)
+    let name = clock.weekday(clock.timestamp(year, m, d))
+    for i, n in days_of_week()
+        if n == name then return i
+    0
+
+
+-- ── months ──────────────────────────────────────────────
+
+--- The days of the week, Monday first.
+fn days_of_week() => ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+--- The weeks of a month as lists of seven day numbers, with 0 where the week is in another month.
+fn weeks(year, m)
+    whole(year, "weeks", 1, 9999)
+    whole(m, "weeks", 1, 12)
+    var days = [0] * weekday_number(year, m, 1) + map(1..clock.days_in_month(year, m), d => d)
+    while length(days) % 7 != 0
+        push(days, 0)
+    [[days[w * 7 + i] for i in 0..6] for w in 0..<(length(days) // 7)]
+
+--- A month as text, the way a wall calendar shows it. Give it a day with mark: to put brackets round it.
+fn month(year, m, mark = nothing)
+    whole(year, "month", 1, 9999)
+    whole(m, "month", 1, 12)
+    if mark != nothing then whole(mark, "month", 1, clock.days_in_month(year, m))
+    let title = "{clock.month_name(m)} {year}"
+    let gap = max(20 - length(title), 0)
+    var out = [" " * (gap // 2) + title, "Mo Tu We Th Fr Sa Su"]
+    for week in weeks(year, m)
+        var row = chars(join([(if d == 0 then "  " else (if d < 10 then " " else "") + "{d}") for d in week], " "))
+        if mark != nothing and mark in week
+            let start = index_of(week, mark) * 3
+            if start + 2 < length(row)
+                row[start + 2] = "]"
+            else
+                push(row, "]")
+            if start > 0
+                row[start - 1] = "["
+            else
+                insert(row, 0, "[")
+        push(out, join(row))
+    join(out, "\n")
+
+
+-- ── finding days ────────────────────────────────────────
+
+--- The time at the start of the next day called name (like "Friday") after the given time.
+fn next_weekday(stamp, name)
+    if not (stamp is number) then fail "next_weekday needs a time in seconds, like now() gives."
+    if name not in days_of_week()
+        fail "next_weekday needs a day name like \"Friday\", but got {name}."
+    let d = clock.date(stamp)
+    var at = clock.timestamp(d.year, d.month, d.day) + clock.day
+    while clock.weekday(at) != name
+        at += clock.day
+    at
+
+--- How many days from today until a date. Negative once it has passed.
+fn countdown(year, m, d, today = nothing)
+    whole(year, "countdown", 1, 9999)
+    whole(m, "countdown", 1, 12)
+    whole(d, "countdown", 1, clock.days_in_month(year, m))
+    let start = if today == nothing then now() else today
+    let t = clock.date(start)
+    clock.days_between(clock.timestamp(t.year, t.month, t.day), clock.timestamp(year, m, d))
+
+--- The date of Easter Sunday in a year, as [month, day].
+fn easter(year)
+    whole(year, "easter", 1583, 9999)
+    let a = year % 19
+    let b = year // 100
+    let c = year % 100
+    let d = b // 4
+    let e = b % 4
+    let f = (b + 8) // 25
+    let g = (b - f + 1) // 3
+    let h = (19 * a + b - d - g + 15) % 30
+    let i = c // 4
+    let k = c % 4
+    let l = (32 + 2 * e + 2 * i - h - k) % 7
+    let m = (a + 11 * h + 22 * l) // 451
+    let month_number = (h + l - 7 * m + 114) // 31
+    let day_number = (h + l - 7 * m + 114) % 31 + 1
+    [month_number, day_number]
+
+
+test "weeks of a month"
+    expect weeks(2026, 11)[0] == [0, 0, 0, 0, 0, 0, 1]
+    expect weeks(2026, 11)[-1] == [30, 0, 0, 0, 0, 0, 0]
+    expect length(weeks(2026, 11)) == 6
+    expect weeks(1970, 1)[0] == [0, 0, 0, 1, 2, 3, 4]
+    expect weeks(2026, 6)[0] == [1, 2, 3, 4, 5, 6, 7]
+
+test "a month as text"
+    let m = lines(month(2026, 11, mark: 3))
+    expect m[0] == "   November 2026"
+    expect m[1] == "Mo Tu We Th Fr Sa Su"
+    expect m[2] == "                   1"
+    expect m[3] == " 2[ 3] 4  5  6  7  8"
+    expect lines(month(2026, 6, mark: 1))[2] == "[ 1] 2  3  4  5  6  7"
+    expect lines(month(2026, 6, mark: 7))[2] == " 1  2  3  4  5  6[ 7]"
+    expect trim(m[-1]) == "30"
+    expect lines(month(1970, 1))[2] == "          1  2  3  4"
+
+test "finding days"
+    let tuesday = clock.timestamp(2026, 11, 3, hour: 15)
+    expect clock.date_text(next_weekday(tuesday, "Friday")) == "2026-11-06"
+    expect clock.date_text(next_weekday(tuesday, "Tuesday")) == "2026-11-10"
+    expect countdown(2026, 12, 25, today: tuesday) == 52
+    expect countdown(2026, 11, 1, today: tuesday) == -2
+    expect easter(2024) == [3, 31]
+    expect easter(2026) == [4, 5]
+    expect easter(2000) == [4, 23]

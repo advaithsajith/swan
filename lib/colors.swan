@@ -1,0 +1,186 @@
+--- Colours as hex codes like "#1a2b3c": take them apart, mix, lighten, darken and check contrast.
+--- Bring it in with:  use colors   (then colors.lighten("#336699", 20))
+--- or pick a few:     use rgb, hex, mix from colors
+
+
+-- ── hex digits by hand ──────────────────────────────────
+
+hidden fn digits() => "0123456789abcdef"
+
+hidden fn digit_value(c)
+    for i, d in digits()
+        if d == c then return i
+    nothing
+
+hidden fn two_digits(n)
+    let v = min(max(round(n), 0), 255)
+    digits()[v // 16] + digits()[v % 16]
+
+hidden fn a_hex(code, what)
+    if not (code is text) then fail "{what} needs a colour as text like \"#1a2b3c\", but got {type(code)}."
+    var body = lower(trim(code))
+    if starts_with(body, "#") then body = body[1..-1]
+    if length(body) == 3 then body = join([c + c for c in body])
+    if length(body) != 6 or any(body, c => digit_value(c) == nothing)
+        fail "{what} needs a colour like \"#1a2b3c\" (six hex digits), but got {code}."
+    body
+
+hidden fn channel(n, what)
+    if not (n is number) or not (0 <= n <= 255)
+        fail "{what} needs red, green and blue from 0 to 255, but got {n}."
+
+
+-- ── taking colours apart ────────────────────────────────
+
+--- The red, green and blue in a colour, 0 to 255 each: rgb("#1a2b3c") is [26, 43, 60]
+fn rgb(code)
+    let body = a_hex(code, "rgb")
+    [digit_value(body[i]) * 16 + digit_value(body[i + 1]) for i in [0, 2, 4]]
+
+--- A hex colour from red, green and blue amounts: hex(26, 43, 60) is "#1a2b3c"
+fn hex(r, g, b)
+    channel(r, "hex")
+    channel(g, "hex")
+    channel(b, "hex")
+    "#" + two_digits(r) + two_digits(g) + two_digits(b)
+
+--- The colour as hue (0 to 360), saturation and lightness (0 to 100): to_hsl("#ff0000") is [0, 100, 50]
+fn to_hsl(code)
+    let parts = map(rgb(code), v => v / 255)
+    let r = parts[0]
+    let g = parts[1]
+    let b = parts[2]
+    let high = max(parts)
+    let low = min(parts)
+    let l = (high + low) / 2
+    if high == low then return [0, 0, round(l * 100)]
+    let d = high - low
+    let s = if l > 0.5 then d / (2 - high - low) else d / (high + low)
+    var h = 0
+    if high == r
+        h = (g - b) / d + (if g < b then 6 else 0)
+    elif high == g
+        h = (b - r) / d + 2
+    else
+        h = (r - g) / d + 4
+    [round(h * 60) % 360, round(s * 100), round(l * 100)]
+
+--- A hex colour from hue (0 to 360), saturation and lightness (0 to 100): from_hsl(120, 100, 50) is "#00ff00"
+fn from_hsl(h, s, l)
+    if not (h is number) or not (s is number) or not (l is number)
+        fail "from_hsl needs three numbers: hue, saturation and lightness."
+    let sat = min(max(s, 0), 100) / 100
+    let light = min(max(l, 0), 100) / 100
+    let c = (1 - abs(2 * light - 1)) * sat
+    let hue = (h % 360) / 60
+    let x = c * (1 - abs(hue % 2 - 1))
+    let m = light - c / 2
+    let base = match floor(hue)
+        0 => [c, x, 0]
+        1 => [x, c, 0]
+        2 => [0, c, x]
+        3 => [0, x, c]
+        4 => [x, 0, c]
+        _ => [c, 0, x]
+    hex((base[0] + m) * 255, (base[1] + m) * 255, (base[2] + m) * 255)
+
+
+-- ── changing colours ────────────────────────────────────
+
+--- The colour t of the way from a to b (0 is all a, 1 is all b, 0.5 is halfway).
+fn mix(a, b, t = 0.5)
+    if not (t is number) or not (0 <= t <= 1) then fail "mix needs t between 0 and 1, but got {t}."
+    let from_parts = rgb(a)
+    let to_parts = rgb(b)
+    hex(...[from_parts[i] + (to_parts[i] - from_parts[i]) * t for i in 0..2])
+
+--- A lighter version, percent of the way towards white.
+fn lighten(code, percent = 20) => mix(code, "#ffffff", share(percent, "lighten"))
+
+--- A darker version, percent of the way towards black.
+fn darken(code, percent = 20) => mix(code, "#000000", share(percent, "darken"))
+
+hidden fn share(percent, what)
+    if not (percent is number) or not (0 <= percent <= 100)
+        fail "{what} needs a percent from 0 to 100, but got {percent}."
+    percent / 100
+
+--- The opposite colour: invert("#000000") is "#ffffff"
+fn invert(code) => hex(...map(rgb(code), v => 255 - v))
+
+--- A list of steps colours fading from a to b, both included.
+fn gradient(a, b, steps = 5)
+    if not (steps is number) or floor(steps) != steps or steps < 2
+        fail "gradient needs a whole number of steps, 2 or more, but got {steps}."
+    [mix(a, b, i / (steps - 1)) for i in 0..<steps]
+
+
+-- ── looking at colours ──────────────────────────────────
+
+--- How bright a colour looks, 0 (black) to 255 (white).
+fn brightness(code)
+    let p = rgb(code)
+    round((p[0] * 299 + p[1] * 587 + p[2] * 114) / 1000)
+
+--- true for colours that white text would read well on.
+fn is_dark(code) => brightness(code) < 128
+
+--- How different two colours are for reading, from 1 (the same) to 21 (black on white).
+fn contrast(a, b)
+    let la = luminance(a)
+    let lb = luminance(b)
+    round((max(la, lb) + 0.05) / (min(la, lb) + 0.05), 2)
+
+hidden fn luminance(code)
+    let parts = map(rgb(code), v => v / 255)
+    let linear = map(parts, c => if c <= 0.03928 then c / 12.92 else ((c + 0.055) / 1.055) ** 2.4)
+    0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+--- The hex code for a colour name like "teal" or "gold". Ask names() for the list.
+fn named(name)
+    if not (name is text) then fail "named needs a colour name as text, like \"teal\"."
+    let key = lower(trim(name))
+    if not has(table(), key)
+        fail "I don't know a colour called {name}. Try one of: {join(names(), ", ")}"
+    table()[key]
+
+--- The colour names that named() knows.
+fn names() => keys(table())
+
+hidden fn table() => {
+    black: "#000000", white: "#ffffff", red: "#ff0000", lime: "#00ff00", blue: "#0000ff",
+    yellow: "#ffff00", cyan: "#00ffff", magenta: "#ff00ff", gray: "#808080", grey: "#808080",
+    silver: "#c0c0c0", maroon: "#800000", olive: "#808000", green: "#008000", purple: "#800080",
+    teal: "#008080", navy: "#000080", orange: "#ffa500", pink: "#ffc0cb", gold: "#ffd700",
+    brown: "#a52a2a", coral: "#ff7f50", salmon: "#fa8072", violet: "#ee82ee", indigo: "#4b0082",
+    turquoise: "#40e0d0", tomato: "#ff6347", lavender: "#e6e6fa", khaki: "#f0e68c", ivory: "#fffff0",
+}
+
+--- A swatch to say: show("#1a2b3c") is "■ #1a2b3c"
+fn show(code) => "■ #" + a_hex(code, "show")
+
+
+test "taking colours apart"
+    expect rgb("#1a2b3c") == [26, 43, 60]
+    expect rgb("FFF") == [255, 255, 255]
+    expect hex(26, 43, 60) == "#1a2b3c"
+    expect to_hsl("#ff0000") == [0, 100, 50]
+    expect to_hsl("#808080") == [0, 0, 50]
+    expect from_hsl(120, 100, 50) == "#00ff00"
+    expect from_hsl(240, 100, 50) == "#0000ff"
+
+test "changing colours"
+    expect mix("#000000", "#ffffff") == "#808080"
+    expect lighten("#000000", 50) == "#808080"
+    expect darken("#ffffff", 100) == "#000000"
+    expect invert("#1a2b3c") == "#e5d4c3"
+    expect gradient("#000000", "#ffffff", 3) == ["#000000", "#808080", "#ffffff"]
+
+test "looking at colours"
+    expect brightness("#ffffff") == 255
+    expect is_dark("#000080") and not is_dark("#ffd700")
+    expect contrast("#000000", "#ffffff") == 21
+    expect contrast("#777777", "#777777") == 1
+    expect named("Teal") == "#008080"
+    expect "gold" in names()
+    expect show("1A2B3C") == "■ #1a2b3c"

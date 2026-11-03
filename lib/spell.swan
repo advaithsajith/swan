@@ -1,0 +1,127 @@
+--- Numbers and times in words: spell.number(42) is "forty-two" and spell.time(3, 30) is "half past three".
+--- Bring it in with:  use spell   (then spell.number(1205))
+--- or pick a few:     use ordinal_words from spell
+
+
+-- ── the words ───────────────────────────────────────────
+
+hidden fn ones() => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+                     "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+                     "eighteen", "nineteen"]
+hidden fn tens() => ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+
+hidden fn under_hundred(n)
+    if n < 20 then return ones()[n]
+    let t = tens()[n // 10]
+    if n % 10 == 0 then return t
+    t + "-" + ones()[n % 10]
+
+hidden fn under_thousand(n)
+    if n < 100 then return under_hundred(n)
+    let h = ones()[n // 100] + " hundred"
+    if n % 100 == 0 then return h
+    h + " and " + under_hundred(n % 100)
+
+hidden fn whole(n, what)
+    if not (n is number) or floor(n) != n
+        fail "{what} needs a whole number, but got {n}."
+
+
+-- ── numbers ─────────────────────────────────────────────
+
+--- A whole number in words: number(1205) is "one thousand two hundred and five". Up to 999,999,999,999.
+fn number(n)
+    whole(n, "spell.number")
+    if abs(n) > 999999999999
+        fail "spell.number can spell numbers up to 999,999,999,999, but got {n}."
+    if n == 0 then return "zero"
+    if n < 0 then return "minus " + number(-n)
+    var parts = []
+    var left = n
+    for group in [[1000000000, "billion"], [1000000, "million"], [1000, "thousand"]]
+        if left >= group[0]
+            push(parts, under_thousand(left // group[0]) + " " + group[1])
+            left = left % group[0]
+    if left > 0
+        if length(parts) > 0 and left < 100
+            push(parts, "and " + under_hundred(left))
+        else
+            push(parts, under_thousand(left))
+    join(parts, " ")
+
+--- A position in words: ordinal_words(42) is "forty-second", ordinal_words(12) is "twelfth".
+fn ordinal_words(n)
+    whole(n, "ordinal_words")
+    if n < 1
+        fail "ordinal_words needs a whole number of 1 or more, but got {n}."
+    let all_words = split(number(n), " ")
+    let pieces = split(all_words[-1], "-")
+    let changed = ordinal_piece(pieces[-1])
+    let last_word = join([pieces[i] for i in 0..<(length(pieces) - 1)] + [changed], "-")
+    join([all_words[i] for i in 0..<(length(all_words) - 1)] + [last_word], " ")
+
+hidden fn ordinal_piece(w)
+    let special = {one: "first", two: "second", three: "third", five: "fifth", eight: "eighth", nine: "ninth",
+                   twelve: "twelfth"}
+    if has(special, w) then return special[w]
+    if ends_with(w, "y") then return join([w[i] for i in 0..<(length(w) - 1)]) + "ieth"
+    w + "th"
+
+
+-- ── times ───────────────────────────────────────────────
+
+--- A time in words, the way people say it: time(3, 45) is "quarter to four", time(6, 10) is "ten past six".
+fn time(hour, minute)
+    if not (hour is number) or floor(hour) != hour or not (0 <= hour <= 23)
+        fail "time needs an hour from 0 to 23, but got {hour}."
+    if not (minute is number) or floor(minute) != minute or not (0 <= minute <= 59)
+        fail "time needs a minute from 0 to 59, but got {minute}."
+    let this_hour = hour_word(hour)
+    let next_hour = hour_word(hour + 1)
+    if minute == 0 then return "{this_hour} o'clock"
+    if minute == 15 then return "quarter past {this_hour}"
+    if minute == 30 then return "half past {this_hour}"
+    if minute == 45 then return "quarter to {next_hour}"
+    if minute < 30 then return "{minutes_word(minute)} past {this_hour}"
+    "{minutes_word(60 - minute)} to {next_hour}"
+
+hidden fn hour_word(hour)
+    let h = hour % 12
+    ones()[if h == 0 then 12 else h]
+
+hidden fn minutes_word(m)
+    if m % 5 == 0 then return under_hundred(m)
+    under_hundred(m) + (if m == 1 then " minute" else " minutes")
+
+
+test "small numbers"
+    expect number(0) == "zero"
+    expect number(7) == "seven"
+    expect number(42) == "forty-two"
+    expect number(100) == "one hundred"
+    expect number(-7) == "minus seven"
+
+test "big numbers"
+    expect number(1205) == "one thousand two hundred and five"
+    expect number(1005) == "one thousand and five"
+    expect number(1000000) == "one million"
+    let big = ["one hundred and twenty-three million", "four hundred and fifty-six thousand",
+               "seven hundred and eighty-nine"]
+    expect number(123456789) == join(big, " ")
+
+test "ordinals"
+    expect ordinal_words(1) == "first"
+    expect ordinal_words(12) == "twelfth"
+    expect ordinal_words(20) == "twentieth"
+    expect ordinal_words(42) == "forty-second"
+    expect ordinal_words(100) == "one hundredth"
+    expect ordinal_words(1003) == "one thousand and third"
+
+test "times"
+    expect time(15, 0) == "three o'clock"
+    expect time(3, 30) == "half past three"
+    expect time(3, 45) == "quarter to four"
+    expect time(6, 10) == "ten past six"
+    expect time(12, 7) == "seven minutes past twelve"
+    expect time(23, 50) == "ten to twelve"
+    expect time(0, 59) == "one minute to one"

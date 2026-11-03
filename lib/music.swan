@@ -1,0 +1,136 @@
+--- Music: note frequencies, MIDI numbers, scales, chords, intervals and tempo.
+--- Notes are written like "A4", "C#4" or "Bb3" (sharps are given back as #). A4 is 440 Hz.
+--- Bring it in with:  use music   (then music.frequency("A4"))
+--- or pick a few:     use scale, chord from music
+
+
+-- ── reading notes ───────────────────────────────────────
+
+hidden fn note_names() => ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+hidden fn letter_steps() => {C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11}
+
+--- {step: 0..11, octave: number or nothing} for text like "C#4" or "Bb".
+hidden fn read_note(t, what)
+    if not (t is text) or t == ""
+        fail "{what} needs a note like \"A4\" or \"C#\", but got {if t is text then "empty text" else type(t)}."
+    let letter = upper(t[0])
+    if not has(letter_steps(), letter)
+        fail "{what} doesn't know the note \"{t}\". Notes start with a letter from A to G, like \"F#4\"."
+    var step = letter_steps()[letter]
+    var at = 1
+    if at < length(t) and t[at] == "#"
+        step += 1
+        at += 1
+    elif at < length(t) and t[at] == "b"
+        step -= 1
+        at += 1
+    var octave = nothing
+    if at < length(t)
+        let rest_text = join([t[k] for k in at..<length(t)])
+        if not all(chars(rest_text), c => c in "0123456789")
+            fail "{what} doesn't understand the note \"{t}\". Write it like \"A4\" or \"Bb3\"."
+        octave = number(rest_text)
+    {step: step % 12, octave: octave}
+
+hidden fn whole(n, what, name)
+    if not (n is number) or floor(n) != n
+        fail "{what} needs {name} to be a whole number, but got {n}."
+
+
+-- ── pitches ─────────────────────────────────────────────
+
+--- The MIDI number of a note: midi("A4") is 69, midi("C4") is 60. Without an octave, 4 is assumed.
+fn midi(note)
+    let n = read_note(note, "midi")
+    ((n.octave ?? 4) + 1) * 12 + n.step
+
+--- The note for a MIDI number: note_name(60) is "C4"
+fn note_name(midi_number)
+    whole(midi_number, "note_name", "the MIDI number")
+    if not (0 <= midi_number <= 127)
+        fail "note_name needs a MIDI number from 0 to 127, but got {midi_number}."
+    note_names()[midi_number % 12] + text(midi_number // 12 - 1)
+
+--- How many times a second the note vibrates, in hertz: frequency("A4") is 440
+fn frequency(note) => 440 * 2 ** ((midi(note) - 69) / 12)
+
+--- The note some semitones higher (or lower, if negative): transpose("A4", 3) is "C5"
+fn transpose(note, semitones)
+    whole(semitones, "transpose", "the number of semitones")
+    note_name(midi(note) + semitones)
+
+--- The name of the gap between two notes: interval_name(7) is "perfect fifth"
+fn interval_name(semitones)
+    whole(semitones, "interval_name", "the number of semitones")
+    let names = ["unison", "minor second", "major second", "minor third", "major third", "perfect fourth",
+                 "tritone", "perfect fifth", "minor sixth", "major sixth", "minor seventh", "major seventh", "octave"]
+    if not (0 <= semitones <= 12)
+        fail "interval_name knows intervals from 0 to 12 semitones, but got {semitones}."
+    names[semitones]
+
+
+-- ── scales and chords ───────────────────────────────────
+
+hidden fn from_root(root, kind, kinds, what)
+    let start = read_note(root, what).step
+    if not (kind is text) or not has(kinds, kind)
+        fail "{what} doesn't know the kind \"{kind}\". It knows: {join(keys(kinds), ", ")}."
+    [note_names()[(start + gap) % 12] for gap in kinds[kind]]
+
+--- The notes of a scale: scale("C") is ["C", "D", "E", "F", "G", "A", "B"]. Kinds: major, minor, pentatonic, blues.
+fn scale(root, kind = "major")
+    from_root(root, kind, {major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10],
+                           pentatonic: [0, 2, 4, 7, 9], blues: [0, 3, 5, 6, 7, 10]}, "scale")
+
+--- The notes of a chord: chord("C") is ["C", "E", "G"]. Kinds: major, minor, seventh, diminished.
+fn chord(root, kind = "major")
+    from_root(root, kind, {major: [0, 4, 7], minor: [0, 3, 7], seventh: [0, 4, 7, 10], diminished: [0, 3, 6]}, "chord")
+
+
+-- ── tempo ───────────────────────────────────────────────
+
+hidden fn a_tempo(bpm, what)
+    if not (bpm is number) or bpm <= 0
+        fail "{what} needs a tempo in beats per minute, above 0, but got {bpm}."
+
+--- How long one beat lasts, in seconds: tempo_to_seconds(120) is 0.5
+fn tempo_to_seconds(bpm)
+    a_tempo(bpm, "tempo_to_seconds")
+    60 / bpm
+
+--- How long some beats last, in seconds: beats_duration(60, 4) is 4
+fn beats_duration(bpm, beats)
+    a_tempo(bpm, "beats_duration")
+    if not (beats is number) or beats < 0
+        fail "beats_duration needs a number of beats, 0 or more, but got {beats}."
+    beats * 60 / bpm
+
+
+test "pitches"
+    expect midi("A4") == 69
+    expect midi("C4") == 60
+    expect midi("Bb3") == 58
+    expect midi("c#4") == 61
+    expect midi("A") == 69
+    expect note_name(60) == "C4"
+    expect note_name(70) == "A#4"
+    expect frequency("A4") == 440
+    expect frequency("A3") == 220
+    expect round(frequency("C4"), 2) == 261.63
+    expect transpose("A4", 3) == "C5"
+    expect transpose("C4", -1) == "B3"
+    expect interval_name(7) == "perfect fifth"
+
+test "scales and chords"
+    expect scale("C") == ["C", "D", "E", "F", "G", "A", "B"]
+    expect scale("A", "minor") == ["A", "B", "C", "D", "E", "F", "G"]
+    expect scale("C", "pentatonic") == ["C", "D", "E", "G", "A"]
+    expect scale("Bb", "major") == ["A#", "C", "D", "D#", "F", "G", "A"]
+    expect chord("C") == ["C", "E", "G"]
+    expect chord("A", "minor") == ["A", "C", "E"]
+    expect chord("G", "seventh") == ["G", "B", "D", "F"]
+    expect chord("B", "diminished") == ["B", "D", "F"]
+
+test "tempo"
+    expect tempo_to_seconds(120) == 0.5
+    expect beats_duration(60, 4) == 4

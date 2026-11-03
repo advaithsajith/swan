@@ -1,0 +1,142 @@
+--- More text charts: sparklines, histograms, line charts, scatter plots and pie legends.
+--- Every tool gives back text, so show it with say:  say plot.sparkline([1, 5, 3])
+--- Bring it in with:  use plot
+--- or pick a few:     use sparkline, histogram from plot
+
+use draw
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn some_numbers(values, what)
+    let items = if values is range then map(values, v => v) else values
+    if not (items is list) or length(items) == 0
+        fail "{what} needs a list of numbers with at least one in it."
+    for v in items
+        if not (v is number) then fail "{what} can only plot numbers, but the list has {type(v)}."
+    items
+
+hidden fn size(n, what, least = 1)
+    if not (n is number) or floor(n) != n or n < least
+        fail "{what} needs a whole number of {least} or more, but got {n}."
+
+--- Which of count levels (0 to count - 1) a value falls in between low and high.
+hidden fn level(v, low, high, count)
+    if high == low then return 0
+    min(floor((v - low) / (high - low) * count), count - 1)
+
+
+-- ── charts ──────────────────────────────────────────────
+
+--- A tiny chart in one line: sparkline([1, 5, 3, 8]) is "▁▅▃█"
+fn sparkline(values)
+    let items = some_numbers(values, "sparkline")
+    let marks = "▁▂▃▄▅▆▇█"
+    let low = min(items)
+    let high = max(items)
+    join([marks[level(v, low, high, 8)] for v in items])
+
+--- Counts values into bins of equal width and draws a bar for each: histogram(scores, bins: 4)
+fn histogram(values, bins = 5, width = 20)
+    let items = some_numbers(values, "histogram")
+    size(bins, "histogram")
+    size(width, "histogram")
+    let low = min(items)
+    let high = max(items)
+    var counts = [0] * bins
+    for v in items
+        counts[level(v, low, high, bins)] += 1
+    let step = (high - low) / bins
+    let labels = [range_label(low + i * step, low + (i + 1) * step) for i in 0..<bins]
+    let label_width = max(map(labels, length))
+    let biggest = max(counts)
+    var out = []
+    for i, c in counts
+        let bar = "█" * (if biggest == 0 then 0 else round(c / biggest * width))
+        push(out, "{draw.pad(labels[i], label_width)} │{bar} {c}")
+    join(out, "\n")
+
+hidden fn range_label(a, b) => "{tidy(a)}–{tidy(b)}"
+hidden fn tidy(n) => if floor(n) == n then text(floor(n)) else text(round(n, 1))
+
+--- A line chart of values in order, height rows tall, with ● for each point and a scale on the left.
+fn line(values, height = 8)
+    let items = some_numbers(values, "line")
+    size(height, "line", least: 2)
+    let low = min(items)
+    let high = max(items)
+    let labels = [tidy(high - (high - low) * r / (height - 1)) for r in 0..<height]
+    let label_width = max(map(labels, length))
+    var rows = [[" "] * length(items) for r in 1..height]
+    var last_row = nothing
+    for i, v in items
+        let r = height - 1 - level(v, low, high, height)
+        rows[r][i] = "●"
+        if last_row != nothing and abs(last_row - r) > 1
+            for between in (min(last_row, r) + 1)..<max(last_row, r)
+                rows[between][i] = "│"
+        last_row = r
+    join([("{draw.pad(labels[r], label_width, align: "right")} ┤" + join(rows[r])) for r in 0..<height], "\n")
+
+--- Dots for a list of [x, y] points, squeezed into width by height characters.
+fn scatter(points, width = 30, height = 10)
+    if not (points is list) or length(points) == 0
+        fail "scatter needs a list of [x, y] points, like: [[1, 2], [3, 5]]"
+    for p in points
+        if not (p is list) or length(p) != 2 or not (p[0] is number) or not (p[1] is number)
+            fail "scatter needs every point to be [x, y] with two numbers, but got {p}."
+    size(width, "scatter", least: 2)
+    size(height, "scatter", least: 2)
+    let xs = map(points, p => p[0])
+    let ys = map(points, p => p[1])
+    var rows = [[" "] * width for r in 1..height]
+    for p in points
+        let col = level(p[0], min(xs), max(xs), width)
+        let row = height - 1 - level(p[1], min(ys), max(ys), height)
+        rows[row][col] = "•"
+    let body = [("│" + join(r)) for r in rows]
+    join(body + ["└" + "─" * width], "\n")
+
+--- A pie chart as a legend: each label with its share as a strip of ■ and □ and a percentage.
+fn pie(data, width = 10)
+    if not (data is map) or length(keys(data)) == 0
+        fail "pie needs a map of label: amount, like: \{swans: 12, ducks: 5\}"
+    size(width, "pie")
+    for label, amount in data
+        if not (amount is number) or amount < 0
+            fail "pie can only share out numbers of 0 or more, but '{label}' is {amount}."
+    let total = sum(values(data))
+    if total == 0 then fail "pie needs the amounts to add up to more than 0."
+    let label_width = max(keys(data) |> map(k => length(text(k))))
+    var out = []
+    for label, amount in data
+        let share = amount / total
+        let filled = round(share * width)
+        let strip = "■" * filled + "□" * (width - filled)
+        push(out, "{draw.pad(label, label_width)} {strip} {draw.pad(round(share * 100) , 3, align: "right")}%")
+    join(out, "\n")
+
+
+test "sparkline"
+    expect sparkline([1, 5, 3, 8]) == "▁▅▃█"
+    expect sparkline([2, 2, 2]) == "▁▁▁"
+    expect sparkline(1..8) == "▁▂▃▄▅▆▇█"
+
+test "histogram and line"
+    let h = histogram([1, 2, 2, 3, 9, 10], bins: 3, width: 6)
+    expect length(lines(h)) == 3
+    expect lines(h)[0] == "1–4  │██████ 4"
+    expect lines(h)[2] == "7–10 │███ 2"
+    let l = line([1, 3, 2], height: 3)
+    expect length(lines(l)) == 3
+    expect lines(l)[0] == "3 ┤ ● "
+    expect lines(l)[2] == "1 ┤●  "
+
+test "scatter"
+    let s = scatter([[0, 0], [1, 1]], width: 2, height: 2)
+    expect s == "│ •\n│• \n└──"
+
+test "pie"
+    let p = pie({swans: 3, ducks: 1}, width: 4)
+    expect lines(p)[0] == "swans ■■■□  75%"
+    expect lines(p)[1] == "ducks ■□□□  25%"

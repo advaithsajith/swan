@@ -1,0 +1,118 @@
+--- Morse code: dots and dashes, there and back again.
+--- Letters are separated by a space and words by " / ", like "... --- ..." for sos.
+--- Bring it in with:  use morse   (then morse.encode("sos"))
+--- or pick a few:     use encode, decode from morse
+
+
+-- ── the table ───────────────────────────────────────────
+
+--- Every letter, digit and common mark with its Morse code: table()["e"] is "."
+fn table()
+    var codes = {a: ".-", b: "-...", c: "-.-.", d: "-..", e: ".", f: "..-.", g: "--.", h: "....", i: "..",
+                 j: ".---", k: "-.-", l: ".-..", m: "--", n: "-.", o: "---", p: ".--.", q: "--.-", r: ".-.",
+                 s: "...", t: "-", u: "..-", v: "...-", w: ".--", x: "-..-", y: "-.--", z: "--..",
+                 0: "-----", 1: ".----", 2: "..---", 3: "...--", 4: "....-", 5: ".....", 6: "-....",
+                 7: "--...", 8: "---..", 9: "----."}
+    codes["."] = ".-.-.-"
+    codes[","] = "--..--"
+    codes["?"] = "..--.."
+    codes["!"] = "-.-.--"
+    codes["'"] = ".----."
+    codes["/"] = "-..-."
+    codes["("] = "-.--."
+    codes[")"] = "-.--.-"
+    codes[":"] = "---..."
+    codes["="] = "-...-"
+    codes["+"] = ".-.-."
+    codes["-"] = "-....-"
+    codes["@"] = ".--.-."
+    codes
+
+hidden fn code_for(c)
+    let codes = table()
+    if c in "0123456789" then return codes[number(c)]
+    get(codes, c, nothing)
+
+hidden fn letters_by_code()
+    var found = {}
+    for letter, code in table()
+        found[code] = text(letter)
+    found
+
+hidden fn some_text(t, what)
+    if not (t is text)
+        fail "{what} works on text, but got {type(t)}."
+    t
+
+
+-- ── there and back ──────────────────────────────────────
+
+--- Text as Morse code: encode("sos") is "... --- ..."
+fn encode(t)
+    var out_words = []
+    for w in words(lower(some_text(t, "encode")))
+        var codes = []
+        for c in w
+            let code = code_for(c)
+            if code == nothing
+                fail "encode has no Morse code for '{c}'. It knows letters, digits and . , ? ! ' / ( ) : = + - @"
+            push(codes, code)
+        push(out_words, join(codes, " "))
+    join(out_words, " / ")
+
+--- Morse code back into text: decode("... --- ...") is "sos"
+fn decode(code)
+    let lookup = letters_by_code()
+    var out_words = []
+    for w in split(trim(some_text(code, "decode")), "/")
+        var letters = []
+        for piece in words(w)
+            if not has(lookup, piece)
+                fail "decode doesn't know the Morse code \"{piece}\". Codes are dots and dashes, like \".-\" for a."
+            push(letters, lookup[piece])
+        push(out_words, join(letters))
+    join(out_words, " ")
+
+--- true if the text is only dots, dashes, spaces and slashes, like Morse code.
+fn is_morse(t)
+    if not (t is text) or trim(t) == "" then return false
+    all(chars(t), c => c in ".- /") and ("." in t or "-" in t)
+
+--- How Morse sounds when spoken: sound(".-") is "di-dah", sound("...") is "di-di-dit"
+fn sound(code)
+    some_text(code, "sound")
+    if not is_morse(code)
+        fail "sound needs Morse code, like \".-\", but got \"{code}\"."
+    var out_words = []
+    for w in split(trim(code), "/")
+        var letters = []
+        for piece in words(w)
+            var bits = []
+            for i, c in piece
+                let at_end = i == length(piece) - 1
+                if c == "." then push(bits, if at_end then "dit" else "di")
+                if c == "-" then push(bits, "dah")
+            push(letters, join(bits, "-"))
+        push(out_words, join(letters, " "))
+    join(out_words, " / ")
+
+
+test "encoding"
+    expect encode("sos") == "... --- ..."
+    expect encode("swan lake") == "... .-- .- -. / .-.. .- -.- ."
+    expect encode("Hi!") == ".... .. -.-.--"
+    expect encode("1877") == ".---- ---.. --... --..."
+
+test "decoding"
+    expect decode("... --- ...") == "sos"
+    expect decode(encode("hello world 123")) == "hello world 123"
+    expect decode("  .-  /  -...  ") == "a b"
+
+test "checking and sounds"
+    expect is_morse("... ---")
+    expect not is_morse("sos")
+    expect not is_morse("   ")
+    expect table()["e"] == "."
+    expect sound(".-") == "di-dah"
+    expect sound("...") == "di-di-dit"
+    expect sound("... --- ...") == "di-di-dit dah-dah-dah di-di-dit"

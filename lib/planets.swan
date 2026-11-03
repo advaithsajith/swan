@@ -1,0 +1,105 @@
+--- The solar system: facts about the planets, your weight and age on each, and how far away they are.
+--- Bring it in with:  use planets   (then planets.weight_on("Mars", 50))
+--- or pick a few:     use info, weight_on from planets
+
+
+-- ── the facts ───────────────────────────────────────────
+-- gravity in m/s², radius in km, day in Earth hours, year in Earth days,
+-- distance from the Sun in millions of km, moons as a count.
+
+hidden fn table() => {
+    Mercury: {gravity: 3.7, radius: 2440, day: 1408, year: 88, distance: 58, moons: 0, kind: "rocky"},
+    Venus: {gravity: 8.9, radius: 6052, day: 5832, year: 225, distance: 108, moons: 0, kind: "rocky"},
+    Earth: {gravity: 9.8, radius: 6371, day: 24, year: 365.25, distance: 150, moons: 1, kind: "rocky"},
+    Mars: {gravity: 3.7, radius: 3390, day: 24.7, year: 687, distance: 228, moons: 2, kind: "rocky"},
+    Jupiter: {gravity: 24.8, radius: 69911, day: 9.9, year: 4333, distance: 778, moons: 95, kind: "gas giant"},
+    Saturn: {gravity: 10.4, radius: 58232, day: 10.7, year: 10759, distance: 1427, moons: 146, kind: "gas giant"},
+    Uranus: {gravity: 8.9, radius: 25362, day: 17.2, year: 30687, distance: 2871, moons: 28, kind: "ice giant"},
+    Neptune: {gravity: 11.2, radius: 24622, day: 16.1, year: 60190, distance: 4495, moons: 16, kind: "ice giant"},
+}
+
+hidden fn proper(name)
+    if not (name is text) then fail "I need a planet's name as text, like \"Mars\"."
+    let key = lower(trim(name))
+    for n in names()
+        if lower(n) == key then return n
+    fail "I don't know a planet called {name}. The planets are: {join(names(), ", ")}"
+
+hidden fn a_number(n, what)
+    if not (n is number) or n < 0
+        fail "{what} needs a number of 0 or more, but got {n}."
+
+
+-- ── looking planets up ──────────────────────────────────
+
+--- The eight planets, in order from the Sun.
+fn names() => keys(table())
+
+--- Everything known here about a planet, as a map: info("Mars").moons is 2
+fn info(name)
+    let planet = proper(name)
+    var facts = copy(table()[planet])
+    facts.name = planet
+    facts
+
+--- The pull of gravity at the surface, in metres per second squared.
+fn gravity(name) => info(name).gravity
+
+--- What something that weighs earth_weight here would weigh there: weight_on("Mars", 60) is 22.7
+fn weight_on(name, earth_weight)
+    a_number(earth_weight, "weight_on")
+    round(earth_weight * gravity(name) / gravity("Earth"), 1)
+
+--- Your age in that planet's years: age_on("Mercury", 12) is 49.8
+fn age_on(name, earth_years)
+    a_number(earth_years, "age_on")
+    round(earth_years * 365.25 / info(name).year, 1)
+
+--- The distance from Earth, roughly, in millions of km (planets move, so this is when they're lined up).
+fn distance_from_earth(name) => abs(info(name).distance - info("Earth").distance)
+
+--- How many hours a trip from Earth would take at a speed in km/h: travel_time("Mars", 28000)
+fn travel_time(name, speed_kmh)
+    if not (speed_kmh is number) or speed_kmh <= 0
+        fail "travel_time needs a speed in km/h of more than 0, but got {speed_kmh}."
+    round(distance_from_earth(name) * 1000000 / speed_kmh)
+
+--- The planets in order from the Sun, nearest first.
+fn order_from_sun() => names()
+
+--- The planet with the biggest radius.
+fn biggest()
+    var best = names()[0]
+    for n in names()
+        if info(n).radius > info(best).radius then best = n
+    best
+
+--- A sentence about a planet.
+fn describe(name)
+    let p = info(name)
+    let moons = match p.moons
+        0 => "no moons"
+        1 => "one moon"
+        n => "{n} moons"
+    "{p.name} is a {p.kind} planet {p.distance} million km from the Sun with {moons}. A day lasts {p.day} hours and a year {p.year} days."
+
+
+test "looking planets up"
+    expect names() == ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
+    expect info("mars").moons == 2
+    expect info("Mars").name == "Mars"
+    expect gravity("Jupiter") == 24.8
+    expect biggest() == "Jupiter"
+    expect order_from_sun()[0] == "Mercury"
+
+test "you, elsewhere"
+    expect weight_on("Mars", 60) == 22.7
+    expect weight_on("Earth", 60) == 60
+    expect age_on("Mercury", 12) == 49.8
+    expect age_on("Earth", 12) == 12
+    expect distance_from_earth("Mars") == 78
+    expect travel_time("Mars", 28000) == 2786
+
+test "words"
+    expect describe("Mars") == "Mars is a rocky planet 228 million km from the Sun with 2 moons. A day lasts 24.7 hours and a year 687 days."
+    expect starts_with(describe("Venus"), "Venus is a rocky planet 108 million km from the Sun with no moons.")

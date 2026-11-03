@@ -1,0 +1,173 @@
+--- Secret codes: rot13, atbash, the Vigenère cipher, rail fences and letter substitution.
+--- Capitals stay capitals, and anything that isn't a letter is left alone.
+--- Bring it in with:  use cipher   (then cipher.rot13("Swan"))
+--- or pick a few:     use vigenere, unvigenere from cipher
+
+
+-- ── letters ─────────────────────────────────────────────
+
+hidden fn alphabet() => "abcdefghijklmnopqrstuvwxyz"
+
+hidden fn some_text(t, what)
+    if not (t is text)
+        fail "{what} works on text, but got {type(t)}."
+    t
+
+hidden fn index_in(t, c)
+    for i, ch in t
+        if ch == c then return i
+    nothing
+
+hidden fn is_letter(c) => upper(c) != lower(c)
+
+--- Replaces letter c with the letter at a new alphabet position, keeping its case.
+hidden fn to_position(c, pos)
+    let moved = alphabet()[pos % 26]
+    if c == upper(c) then return upper(moved)
+    moved
+
+hidden fn shift_letter(c, steps)
+    let pos = index_in(alphabet(), lower(c))
+    if pos == nothing then return c
+    to_position(c, pos + steps)
+
+hidden fn key_letters(key, what)
+    let found = join(keep(chars(lower(some_text(key, what))), is_letter))
+    if found == ""
+        fail "{what} needs a key with at least one letter in it."
+    found
+
+
+-- ── simple swaps ────────────────────────────────────────
+
+--- Moves every letter 13 places along, which also undoes itself: rot13("Swan") is "Fjna"
+fn rot13(t) => chars(some_text(t, "rot13")) |> map(c => shift_letter(c, 13)) |> join
+
+--- Flips the alphabet, so a becomes z and b becomes y: atbash("Swan") is "Hdzm". It undoes itself too.
+fn atbash(t)
+    chars(some_text(t, "atbash")) |> map(c => mirror(c)) |> join
+
+hidden fn mirror(c)
+    let pos = index_in(alphabet(), lower(c))
+    if pos == nothing then return c
+    to_position(c, 25 - pos)
+
+--- Writes each word backwards, keeping the words in order: reverse_words("swan lake") is "naws ekal"
+fn reverse_words(t) => split(some_text(t, "reverse_words"), " ") |> map(reverse) |> join(" ")
+
+
+-- ── vigenère ────────────────────────────────────────────
+
+--- The Vigenère cipher: each letter is shifted by the next letter of the key. vigenere("attack at dawn", "lemon")
+fn vigenere(t, key) => vigenere_shift(some_text(t, "vigenere"), key_letters(key, "vigenere"), 1)
+
+--- Undoes vigenere, with the same key.
+fn unvigenere(t, key) => vigenere_shift(some_text(t, "unvigenere"), key_letters(key, "unvigenere"), -1)
+
+hidden fn vigenere_shift(t, key, direction)
+    var out = ""
+    var at = 0
+    for c in t
+        if is_letter(c)
+            let steps = index_in(alphabet(), key[at % length(key)])
+            out += shift_letter(c, steps * direction)
+            at += 1
+        else
+            out += c
+    out
+
+
+-- ── rail fence ──────────────────────────────────────────
+
+hidden fn a_rail_count(rails, what)
+    if not (rails is number) or floor(rails) != rails or rails < 2
+        fail "{what} needs a whole number of rails, 2 or more, but got {rails}."
+
+--- Which rail each position of the text lands on, zigzagging down and up.
+hidden fn rail_pattern(size, rails)
+    let period = 2 * (rails - 1)
+    var pattern = []
+    for i in 0..<size
+        let r = i % period
+        push(pattern, if r < rails then r else period - r)
+    pattern
+
+--- The rail fence cipher: writes the text in a zigzag over some rails, then reads it rail by rail.
+fn rail_fence(t, rails)
+    some_text(t, "rail_fence")
+    a_rail_count(rails, "rail_fence")
+    if t == "" then return ""
+    let pattern = rail_pattern(length(t), rails)
+    var out = ""
+    for rail in 0..<rails
+        for i, c in t
+            if pattern[i] == rail then out += c
+    out
+
+--- Undoes rail_fence, with the same number of rails.
+fn unrail_fence(t, rails)
+    some_text(t, "unrail_fence")
+    a_rail_count(rails, "unrail_fence")
+    if t == "" then return ""
+    let pattern = rail_pattern(length(t), rails)
+    var starts = [0] * rails
+    var seen = 0
+    for rail in 0..<rails
+        starts[rail] = seen
+        seen += count(pattern, p => p == rail)
+    var out = ""
+    for p in pattern
+        out += t[starts[p]]
+        starts[p] += 1
+    out
+
+
+-- ── substitution ────────────────────────────────────────
+
+hidden fn a_key_alphabet(key, what)
+    let found = lower(some_text(key, what))
+    if length(found) != 26 or length(unique(chars(found))) != 26 or not all(chars(found), is_letter)
+        fail "{what} needs a key of all 26 letters in some order, like \"qwertyuiopasdfghjklzxcvbnm\"."
+    found
+
+--- Swaps each letter for the one in the same place in your key alphabet: substitution("abc", "qwerty…") is "qwe"
+fn substitution(t, key_alphabet)
+    let key = a_key_alphabet(key_alphabet, "substitution")
+    chars(some_text(t, "substitution")) |> map(c => swap_letter(c, alphabet(), key)) |> join
+
+--- Undoes substitution, with the same key alphabet.
+fn unsubstitution(t, key_alphabet)
+    let key = a_key_alphabet(key_alphabet, "unsubstitution")
+    chars(some_text(t, "unsubstitution")) |> map(c => swap_letter(c, key, alphabet())) |> join
+
+hidden fn swap_letter(c, source, target)
+    let pos = index_in(source, lower(c))
+    if pos == nothing then return c
+    if c == upper(c) then return upper(target[pos])
+    target[pos]
+
+
+test "simple swaps"
+    expect rot13("Swan") == "Fjna"
+    expect rot13(rot13("Hello, lake!")) == "Hello, lake!"
+    expect atbash("abc") == "zyx"
+    expect atbash("Swan") == "Hdzm"
+    expect reverse_words("swan lake") == "naws ekal"
+
+test "vigenère"
+    expect vigenere("attack at dawn", "lemon") == "lxfopv ef rnhr"
+    expect unvigenere("lxfopv ef rnhr", "lemon") == "attack at dawn"
+    expect vigenere("Swan Lake!", "Odette") == "Gzeg Eeyh!"
+    expect unvigenere(vigenere("Swan Lake!", "Odette"), "Odette") == "Swan Lake!"
+
+test "rail fence"
+    expect rail_fence("WEAREDISCOVEREDFLEEATONCE", 3) == "WECRLTEERDSOEEFEAOCAIVDEN"
+    expect unrail_fence("WECRLTEERDSOEEFEAOCAIVDEN", 3) == "WEAREDISCOVEREDFLEEATONCE"
+    expect unrail_fence(rail_fence("swan lake", 4), 4) == "swan lake"
+
+test "substitution"
+    let key = "qwertyuiopasdfghjklzxcvbnm"
+    expect substitution("abc", key) == "qwe"
+    expect substitution("Swan!", key) == "Lvqf!"
+    expect unsubstitution("qwe", key) == "abc"
+    expect unsubstitution(substitution("Odette and Odile", key), key) == "Odette and Odile"

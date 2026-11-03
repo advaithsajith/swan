@@ -1,0 +1,209 @@
+--- Ways to hold things: a Stack (last in, first out), a Queue (first in, first out), a Deque that
+--- works at both ends, a PriorityQueue that hands out the most urgent item first, and a Counter.
+--- Bring it in with:  use collections   (then let todo = collections.Stack())
+--- or pick a few:     use Stack, Queue from collections
+
+
+-- ── helpers ─────────────────────────────────────────────
+-- Inside a shape, a method called push or pop hides the built-in one, so these reach it from outside.
+
+hidden fn put_last(xs, item) => push(xs, item)
+hidden fn take_last(xs) => pop(xs)
+
+
+-- ── a stack: like a pile of plates ──────────────────────
+
+--- Last in, first out. push puts an item on top; pop takes the top one off.
+shape Stack(hidden items = [])
+    --- Puts an item on top.
+    fn push(item)
+        put_last(items, item)
+        me
+
+    --- Takes the top item off and gives it back.
+    fn pop()
+        if length(items) == 0 then fail "The stack is empty, so there's nothing to pop."
+        take_last(items)
+
+    --- The top item, left where it is. nothing if the stack is empty.
+    fn peek() => last(items)
+
+    --- How many items are on the stack.
+    fn size() => length(items)
+
+    --- true when there's nothing on the stack.
+    fn is_empty() => length(items) == 0
+
+    --- The items from bottom to top.
+    fn show() => "Stack({join(items, ", ")})"
+
+
+-- ── a queue: like a line at the shop ────────────────────
+
+--- First in, first out. enqueue joins the back; dequeue serves the front.
+shape Queue(hidden items = [])
+    --- Joins the back of the queue.
+    fn enqueue(item)
+        push(items, item)
+        me
+
+    --- Serves the item at the front and gives it back.
+    fn dequeue()
+        if length(items) == 0 then fail "The queue is empty, so there's nothing to dequeue."
+        let front = items[0]
+        remove(items, front)
+        front
+
+    --- The item at the front, left where it is. nothing if the queue is empty.
+    fn peek() => first(items)
+
+    --- How many items are waiting.
+    fn size() => length(items)
+
+    --- true when nobody is waiting.
+    fn is_empty() => length(items) == 0
+
+    --- The items from front to back.
+    fn show() => "Queue({join(items, ", ")})"
+
+
+-- ── a deque: open at both ends ──────────────────────────
+
+--- A double-ended queue: add or take items at the front or the back.
+shape Deque(hidden items = [])
+    --- Adds an item at the front.
+    fn push_front(item)
+        insert(items, 0, item)
+        me
+
+    --- Adds an item at the back.
+    fn push_back(item)
+        push(items, item)
+        me
+
+    --- Takes the front item off and gives it back.
+    fn pop_front()
+        if length(items) == 0 then fail "The deque is empty, so there's nothing to pop."
+        let front = items[0]
+        items = if length(items) > 1 then [items[i] for i in 1..<length(items)] else []
+        front
+
+    --- Takes the back item off and gives it back.
+    fn pop_back()
+        if length(items) == 0 then fail "The deque is empty, so there's nothing to pop."
+        pop(items)
+
+    --- The front item, left where it is.
+    fn peek_front() => first(items)
+
+    --- The back item, left where it is.
+    fn peek_back() => last(items)
+
+    --- How many items there are.
+    fn size() => length(items)
+
+    --- true when it holds nothing.
+    fn is_empty() => length(items) == 0
+
+    --- The items from front to back.
+    fn show() => "Deque({join(items, ", ")})"
+
+
+-- ── a priority queue: most urgent first ─────────────────
+
+--- Items come out lowest priority number first (1 before 2), and ties come out in the order they went in.
+shape PriorityQueue(hidden entries = [])
+    --- Adds an item with its priority: a smaller number means sooner.
+    fn push(item, priority)
+        if not (priority is number) then fail "A priority should be a number, but got {type(priority)}."
+        var at = length(entries)
+        for i, e in entries
+            if priority < e[1]
+                at = i
+                stop
+        insert(entries, at, [item, priority])
+        me
+
+    --- Takes out the item with the lowest priority number.
+    fn pop()
+        if length(entries) == 0 then fail "The priority queue is empty, so there's nothing to pop."
+        let front = entries[0]
+        entries = if length(entries) > 1 then [entries[i] for i in 1..<length(entries)] else []
+        front[0]
+
+    --- The next item to come out, left where it is.
+    fn peek() => if length(entries) == 0 then nothing else entries[0][0]
+
+    --- How many items are waiting.
+    fn size() => length(entries)
+
+    --- true when nothing is waiting.
+    fn is_empty() => length(entries) == 0
+
+    --- The items in the order they'd come out, with their priorities.
+    fn show() => "PriorityQueue(" + join([e[0] + ":" + text(e[1]) for e in entries], ", ") + ")"
+
+
+-- ── a counter: how many of each ─────────────────────────
+
+--- Counts things as you add them: add("swan") twice makes count_of("swan") 2.
+shape Counter(hidden counts = {})
+    --- Counts one more of the item (or several, with add("swan", 3)).
+    fn add(item, times = 1)
+        counts[item] = get(counts, item, 0) + times
+        me
+
+    --- How many of the item have been counted.
+    fn count_of(item) => get(counts, item, 0)
+
+    --- The n most counted items, biggest first, as [item, count] pairs.
+    fn most_common(n = 1)
+        let ordered = sort(keys(counts), by: k => -counts[k])
+        if n <= 0 or length(ordered) == 0 then return []
+        [[k, counts[k]] for k in ordered[0..<min(n, length(ordered))]]
+
+    --- Everything counted, as a map.
+    fn all_counts() => copy(counts)
+
+    --- How many things have been counted in all.
+    fn total() => sum(values(counts))
+
+
+test "stack"
+    let plates = Stack()
+    plates.push(1).push(2).push(3)
+    expect plates.size() == 3 and plates.peek() == 3
+    expect plates.pop() == 3 and plates.pop() == 2
+    expect plates.show() == "Stack(1)"
+    expect not plates.is_empty()
+    plates.pop()
+    expect plates.is_empty() and plates.peek() == nothing
+
+test "queue and deque"
+    let line = Queue()
+    line.enqueue("Odette").enqueue("Pip")
+    expect line.dequeue() == "Odette"
+    expect line.peek() == "Pip" and line.size() == 1
+    expect line.show() == "Queue(Pip)"
+    let d = Deque()
+    d.push_back(2).push_back(3).push_front(1)
+    expect d.show() == "Deque(1, 2, 3)"
+    expect d.pop_front() == 1 and d.pop_back() == 3
+    expect d.peek_front() == 2 and d.peek_back() == 2 and d.size() == 1
+
+test "priority queue"
+    let er = PriorityQueue()
+    er.push("sprain", 3).push("heart", 1).push("cut", 3).push("fever", 2)
+    expect er.peek() == "heart"
+    expect [er.pop(), er.pop(), er.pop(), er.pop()] == ["heart", "fever", "sprain", "cut"]
+    expect er.is_empty()
+
+test "counter"
+    let seen = Counter()
+    for bird in ["swan", "duck", "swan", "coot", "swan", "duck"]
+        seen.add(bird)
+    seen.add("heron", 2)
+    expect seen.count_of("swan") == 3 and seen.count_of("owl") == 0
+    expect seen.most_common() == [["swan", 3]]
+    expect seen.most_common(2) == [["swan", 3], ["duck", 2]]
+    expect seen.total() == 8

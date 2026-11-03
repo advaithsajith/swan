@@ -1,0 +1,130 @@
+--- Noughts and crosses: a Board to play on, a text picture of it, and a computer player.
+--- Positions are 1 to 9, left to right and top to bottom, like a phone keypad upside down.
+--- Bring it in with:  use tictactoe   (then let board = tictactoe.Board())
+--- or pick a few:     use Board, best_move from tictactoe
+
+
+hidden fn lines() => [[1, 2, 3], [4, 5, 6], [7, 8, 9], [1, 4, 7], [2, 5, 8], [3, 6, 9], [1, 5, 9], [3, 5, 7]]
+
+hidden fn a_mark(mark)
+    if mark not in ["X", "O"]
+        fail "A mark should be \"X\" or \"O\", but got {text(mark)}."
+    mark
+
+--- The other player's mark: other("X") is "O".
+fn other(mark) => if a_mark(mark) == "X" then "O" else "X"
+
+
+--- A 3×3 board. Play with play(position, mark); ask winner(), is_over() and show().
+shape Board(hidden cells = [" "] * 9)
+    --- What's at a position: "X", "O" or " ".
+    fn at(position)
+        a_position(position)
+        cells[position - 1]
+
+    --- Puts a mark at a position (1 to 9). Fails if the square is taken or the game is over.
+    fn play(position, mark)
+        a_position(position)
+        a_mark(mark)
+        if is_over()
+            fail "The game is already over."
+        if cells[position - 1] != " "
+            fail "Square {position} already has {cells[position - 1]} in it. Free squares: {join(free(), ", ")}"
+        cells[position - 1] = mark
+        me
+
+    --- "X" or "O" if someone has three in a row, otherwise nothing.
+    fn winner()
+        for line in lines()
+            let a = cells[line[0] - 1]
+            if a != " " and a == cells[line[1] - 1] and a == cells[line[2] - 1] then return a
+        nothing
+
+    --- The positions nobody has played yet.
+    fn free() => [i + 1 for i, c in cells if c == " "]
+
+    --- true when every square is taken.
+    fn is_full() => length(free()) == 0
+
+    --- true when someone has won or the board is full.
+    fn is_over() => winner() != nothing or is_full()
+
+    --- A picture of the board.
+    fn show()
+        var rows = []
+        for r in 0..2
+            push(rows, " {cells[r * 3]} │ {cells[r * 3 + 1]} │ {cells[r * 3 + 2]} ")
+        join(rows, "\n───┼───┼───\n")
+
+    --- Clears the board.
+    fn reset()
+        cells = [" "] * 9
+        me
+
+    hidden fn a_position(position)
+        if not (position is number) or position not in 1..9
+            fail "A position should be a whole number from 1 to 9, but got {text(position)}."
+
+
+--- A board from a list of moves written as text: play_text("X5 O1 X9")
+fn play_text(moves)
+    var board = Board()
+    for move in words(text(moves))
+        if length(move) != 2
+            fail "Each move should be a mark and a square, like X5, but got {move}."
+        board.play(number(move[1]), upper(move[0]))
+    board
+
+--- A good square for mark to play next: win if it can, block if it must, else centre, a corner, anything.
+fn best_move(board, mark)
+    a_mark(mark)
+    if not (board is Board)
+        fail "best_move needs a Board."
+    let free = board.free()
+    if length(free) == 0
+        fail "The board is full, so there's no move to make."
+    for who in [mark, other(mark)]
+        for line in lines()
+            let marks = [board.at(p) for p in line]
+            if count(marks, m => m == who) == 2 and " " in marks
+                return line[index_of(marks, " ")]
+    if 5 in free then return 5
+    for corner in [1, 3, 7, 9]
+        if corner in free then return corner
+    free[0]
+
+hidden fn index_of(xs, item)
+    for i, x in xs
+        if x == item then return i
+    nothing
+
+
+test "playing and winning"
+    let board = play_text("X5 O1 X9 O2")
+    expect board.at(5) == "X" and board.at(3) == " "
+    expect board.winner() == nothing and not board.is_over()
+    expect board.free() == [3, 4, 6, 7, 8]
+    board.play(3, "O")
+    expect board.winner() == "O" and board.is_over()
+    expect play_text("X1 O4 X2 O5 X3").winner() == "X"
+    expect play_text("X1 O2 X3 O5 X4 O6 X8 O7 X9").is_full()
+    expect play_text("X1 O2 X3 O5 X4 O6 X8 O7 X9").winner() == nothing
+
+test "mistakes are explained"
+    var problem = ""
+    try
+        play_text("X5 O5")
+    otherwise p
+        problem = text(p)
+    expect "already has X" in problem
+    expect other("X") == "O" and other("O") == "X"
+
+test "the picture"
+    expect play_text("X5 O1").show() == " O │   │   \n───┼───┼───\n   │ X │   \n───┼───┼───\n   │   │   "
+
+test "the computer player"
+    expect best_move(play_text("X1 X2"), "X") == 3
+    expect best_move(play_text("X1 X2"), "O") == 3
+    expect best_move(Board(), "X") == 5
+    expect best_move(play_text("X5"), "O") == 1
+    expect best_move(play_text("X5 O1 X9 O2"), "X") == 3

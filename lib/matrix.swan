@@ -1,0 +1,131 @@
+--- Matrices: grids of numbers you can add, multiply and flip, written as lists of lists.
+--- A matrix is just [[1, 2], [3, 4]], so you can make one by hand or with make().
+--- Bring it in with:  use matrix   (then matrix.multiply(a, b))
+--- or pick a few:     use identity, determinant from matrix
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_matrix(m, what)
+    if not (m is list) or length(m) == 0 or not (m[0] is list) or length(m[0]) == 0
+        fail "{what} needs a matrix: a list of rows, like [[1, 2], [3, 4]]."
+    for row in m
+        if not (row is list) or length(row) != length(m[0])
+            fail "{what} needs every row of the matrix to be the same length."
+        for v in row
+            if not (v is number)
+                fail "{what} needs a matrix of numbers, but found {type(v)} in it."
+    m
+
+hidden fn whole(n, what)
+    if not (n is number) or floor(n) != n or n < 1
+        fail "{what} needs a whole number of 1 or more, but got {n}."
+    n
+
+hidden fn same_size(a, b, what)
+    a_matrix(a, what)
+    a_matrix(b, what)
+    if size(a) != size(b)
+        fail "{what} needs two matrices of the same size, but got {size(a)[0]}×{size(a)[1]} and {size(b)[0]}×{size(b)[1]}."
+
+
+-- ── making matrices ─────────────────────────────────────
+
+--- A matrix with rows rows and cols columns, full of fill (0 unless you say otherwise).
+fn make(rows, cols, fill = 0)
+    whole(rows, "make")
+    whole(cols, "make")
+    [[fill for c in 1..cols] for r in 1..rows]
+
+--- The n×n identity matrix: 1s down the diagonal, 0s elsewhere. Multiplying by it changes nothing.
+fn identity(n)
+    whole(n, "identity")
+    [[(if r == c then 1 else 0) for c in 1..n] for r in 1..n]
+
+--- [rows, columns] of a matrix.
+fn size(m)
+    a_matrix(m, "size")
+    [length(m), length(m[0])]
+
+
+-- ── arithmetic ──────────────────────────────────────────
+
+--- Adds two matrices of the same size, spot by spot.
+fn add(a, b)
+    same_size(a, b, "add")
+    [[a[r][c] + b[r][c] for c in 0..<length(a[0])] for r in 0..<length(a)]
+
+--- Takes one matrix away from another of the same size, spot by spot.
+fn subtract(a, b)
+    same_size(a, b, "subtract")
+    [[a[r][c] - b[r][c] for c in 0..<length(a[0])] for r in 0..<length(a)]
+
+--- Multiplies every number in the matrix by k.
+fn scale(m, k)
+    a_matrix(m, "scale")
+    if not (k is number)
+        fail "scale needs a number to multiply by, but got {type(k)}."
+    [[v * k for v in row] for row in m]
+
+--- Matrix multiplication. The columns of a must match the rows of b.
+fn multiply(a, b)
+    a_matrix(a, "multiply")
+    a_matrix(b, "multiply")
+    if length(a[0]) != length(b)
+        fail "multiply needs the first matrix to have as many columns as the second has rows, but got {size(a)[0]}×{size(a)[1]} and {size(b)[0]}×{size(b)[1]}."
+    [[sum([a[r][k] * b[k][c] for k in 0..<length(b)]) for c in 0..<length(b[0])] for r in 0..<length(a)]
+
+--- Flips a matrix over its diagonal, so rows become columns.
+fn transpose(m)
+    a_matrix(m, "transpose")
+    [[row[c] for row in m] for c in 0..<length(m[0])]
+
+--- The determinant of a square matrix: 0 means it squashes space flat and can't be undone.
+fn determinant(m)
+    a_matrix(m, "determinant")
+    if length(m) != length(m[0])
+        fail "determinant needs a square matrix, but got {size(m)[0]}×{size(m)[1]}."
+    if length(m) == 1 then return m[0][0]
+    if length(m) == 2 then return m[0][0] * m[1][1] - m[0][1] * m[1][0]
+    var total = 0
+    for c, v in m[0]
+        let minor = [[row[k] for k, _ in row if k != c] for row in m[1..-1]]
+        total += (if c % 2 == 0 then v else -v) * determinant(minor)
+    total
+
+
+-- ── showing ─────────────────────────────────────────────
+
+--- The matrix as neat text, with the numbers lined up in columns.
+fn show(m)
+    a_matrix(m, "show")
+    let width = max([max([length(text(v)) for v in row]) for row in m])
+    join([join([" " * (width - length(text(v))) + text(v) for v in row], "  ") for row in m], "\n")
+
+
+test "making matrices"
+    expect make(2, 3) == [[0, 0, 0], [0, 0, 0]]
+    expect make(1, 2, fill: 7) == [[7, 7]]
+    expect identity(2) == [[1, 0], [0, 1]]
+    expect size([[1, 2, 3], [4, 5, 6]]) == [2, 3]
+
+test "arithmetic"
+    let a = [[1, 2], [3, 4]]
+    let b = [[5, 6], [7, 8]]
+    expect add(a, b) == [[6, 8], [10, 12]]
+    expect subtract(b, a) == [[4, 4], [4, 4]]
+    expect scale(a, 2) == [[2, 4], [6, 8]]
+    expect multiply(a, b) == [[19, 22], [43, 50]]
+    expect multiply(a, identity(2)) == a
+    expect multiply([[1, 2, 3]], [[1], [2], [3]]) == [[14]]
+    expect transpose([[1, 2, 3], [4, 5, 6]]) == [[1, 4], [2, 5], [3, 6]]
+
+test "determinant"
+    expect determinant([[5]]) == 5
+    expect determinant([[1, 2], [3, 4]]) == -2
+    expect determinant([[6, 1, 1], [4, -2, 5], [2, 8, 7]]) == -306
+    expect determinant([[2, 0, 1], [1, 3, 2], [1, 1, 1]]) == 0
+    expect determinant(identity(4)) == 1
+
+test "show"
+    expect show([[1, 20], [300, 4]]) == "  1   20\n300    4"

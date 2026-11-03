@@ -1,0 +1,139 @@
+--- Finding things in lists: where an item is, which items match, and the nearest number.
+--- linear_search looks at every item in turn and works on any list. binary_search jumps to the middle
+--- again and again, so it's much faster on long lists, but the list must already be sorted.
+--- Bring it in with:  use search   (then search.binary_search([1, 3, 5], 3))
+--- or pick a few:     use find_all, nearest from search
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_list(xs, what)
+    if xs is range then return map(xs, x => x)
+    if not (xs is list)
+        fail "{what} needs a list, but got {type(xs)}."
+    xs
+
+hidden fn a_function(f, what)
+    if not (f is function)
+        fail "{what} needs a little function to test each item, like: n => n > 2"
+    f
+
+
+-- ── one item ────────────────────────────────────────────
+
+--- Looks at every item in turn. The position of item, counting from 0, or nothing if it isn't there.
+fn linear_search(xs, item)
+    for i, x in a_list(xs, "linear_search")
+        if x == item then return i
+    nothing
+
+--- Halves the search each step, so the list must be sorted. The position of item, or nothing.
+fn binary_search(sorted_list, item)
+    let items = a_list(sorted_list, "binary_search")
+    var low = 0
+    var high = length(items) - 1
+    while low <= high
+        let mid = (low + high) // 2
+        if items[mid] == item then return mid
+        if items[mid] < item
+            low = mid + 1
+        else
+            high = mid - 1
+    nothing
+
+--- Where item would go to keep a sorted list sorted: insertion_point([1, 3, 5], 4) is 2
+fn insertion_point(sorted_list, item)
+    let items = a_list(sorted_list, "insertion_point")
+    var low = 0
+    var high = length(items)
+    while low < high
+        let mid = (low + high) // 2
+        if items[mid] < item
+            low = mid + 1
+        else
+            high = mid
+    low
+
+--- The number in the list closest to target. If two tie, the earlier one wins.
+fn nearest(numbers, target)
+    let items = a_list(numbers, "nearest")
+    if length(items) == 0
+        fail "nearest needs at least one number, but the list is empty."
+    if not (target is number)
+        fail "nearest needs a number to aim for, but got {type(target)}."
+    var best = items[0]
+    for x in items
+        if not (x is number)
+            fail "nearest works on numbers, but the list has {type(x)}."
+        if abs(x - target) < abs(best - target) then best = x
+    best
+
+
+-- ── items that match ────────────────────────────────────
+
+--- The positions of every item the function says yes to: find_all([3, 8, 5, 9], n => n > 4) is [1, 2, 3]
+fn find_all(xs, f)
+    a_function(f, "find_all")
+    var out = []
+    for i, x in a_list(xs, "find_all")
+        if f(x) then push(out, i)
+    out
+
+--- The position of the first item the function says yes to, or nothing.
+fn find_index(xs, f)
+    a_function(f, "find_index")
+    for i, x in a_list(xs, "find_index")
+        if f(x) then return i
+    nothing
+
+--- The first item the function says yes to, or nothing.
+fn first_where(xs, f)
+    a_function(f, "first_where")
+    for x in a_list(xs, "first_where")
+        if f(x) then return x
+    nothing
+
+--- The last item the function says yes to, or nothing.
+fn last_where(xs, f)
+    a_function(f, "last_where")
+    for x in reverse(a_list(xs, "last_where"))
+        if f(x) then return x
+    nothing
+
+--- true if every one of items is somewhere in the list.
+fn contains_all(xs, items)
+    let haystack = a_list(xs, "contains_all")
+    all(a_list(items, "contains_all"), item => item in haystack)
+
+--- true if each item is no bigger than the next.
+fn is_sorted(xs)
+    let items = a_list(xs, "is_sorted")
+    if length(items) < 2 then return true
+    all(1..<length(items), i => not (items[i] < items[i - 1]))
+
+
+test "one item"
+    expect linear_search(["swan", "duck"], "duck") == 1
+    expect linear_search(["swan"], "owl") == nothing
+    expect binary_search([1, 3, 5, 7, 9], 7) == 3
+    expect binary_search([1, 3, 5, 7, 9], 4) == nothing
+    expect binary_search([], 4) == nothing
+    expect binary_search(1..100, 83) == 82
+    expect insertion_point([1, 3, 5], 4) == 2
+    expect insertion_point([1, 3, 5], 9) == 3
+    expect nearest([2, 7, 11], 8) == 7
+    expect nearest([5, 3], 4) == 5
+
+test "matching items"
+    expect find_all([3, 8, 5, 9], n => n > 4) == [1, 2, 3]
+    expect find_index(["a", "bb", "ccc"], w => length(w) == 2) == 1
+    expect find_index([1], n => n > 5) == nothing
+    expect first_where([1, 6, 8], n => n > 5) == 6
+    expect last_where([1, 6, 8], n => n > 5) == 8
+    expect contains_all([1, 2, 3], [3, 1])
+    expect not contains_all([1, 2], [3])
+
+test "sortedness"
+    expect is_sorted([1, 2, 2, 5])
+    expect not is_sorted([3, 1])
+    expect is_sorted([]) and is_sorted(["a", "b"])

@@ -1,0 +1,123 @@
+--- Money: showing amounts nicely, splitting bills, tips, tax, discounts and giving change.
+--- Bring it in with:  use money   (then money.format(1234.5))
+--- or pick a few:     use split_bill, tip from money
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn an_amount(x, what)
+    if not (x is number)
+        fail "{what} needs a number, but got {type(x)}."
+    x
+
+hidden fn a_percent(p, what)
+    if not (p is number) or p < 0
+        fail "{what} needs a percent of 0 or more, but got {p}."
+    p
+
+hidden fn in_cents(amount) => round(amount * 100)
+
+hidden fn commas(digits)
+    var out = ""
+    for i, d in reverse(chars(digits))
+        if i > 0 and i % 3 == 0 then out = "," + out
+        out = d + out
+    out
+
+hidden fn zeros(t, width) => "0" * max(width - length(t), 0) + t
+
+
+-- ── showing amounts ─────────────────────────────────────
+
+--- An amount as money text: format(1234.5) is "$1,234.50". Pick a symbol: format(5, symbol: "£")
+fn format(amount, symbol = "$", decimals = 2)
+    an_amount(amount, "format")
+    if not (decimals is number) or floor(decimals) != decimals or decimals < 0
+        fail "format needs a whole number of decimals, but got {decimals}."
+    let factor = 10 ** decimals
+    let units = round(abs(amount) * factor)
+    var out = commas(text(units // factor))
+    if decimals > 0 then out += "." + zeros(text(units % factor), decimals)
+    (if amount < 0 and units > 0 then "-" else "") + symbol + out
+
+--- Reads money text back into a number: parse("$1,234.50") is 1234.5
+fn parse(t)
+    if not (t is text)
+        fail "parse needs money text like \"$12.50\", but got {type(t)}."
+    let digits = join(keep(chars(t), c => c in "0123456789.-"))
+    if digits == "" or digits == "-" or digits == "."
+        fail "parse couldn't find a number in \"{t}\"."
+    number(digits)
+
+--- Rounds to the nearest cent: round_cents(2.345) is 2.35
+fn round_cents(amount) => in_cents(an_amount(amount, "round_cents")) / 100
+
+
+-- ── working things out ──────────────────────────────────
+
+--- Splits a bill fairly. The shares add up to the total exactly; any odd cents go to the first people.
+fn split_bill(total, people)
+    an_amount(total, "split_bill")
+    if not (people is number) or floor(people) != people or people < 1
+        fail "split_bill needs a whole number of people, 1 or more, but got {people}."
+    let cents = in_cents(total)
+    let each = cents // people
+    let extra = cents % people
+    [(each + (if i < extra then 1 else 0)) / 100 for i in 0..<people]
+
+--- The tip on a bill: tip(80, 15) is 12
+fn tip(total, percent) => round_cents(an_amount(total, "tip") * a_percent(percent, "tip") / 100)
+
+--- An amount with tax added: with_tax(100, 20) is 120
+fn with_tax(amount, percent) => round_cents(an_amount(amount, "with_tax") * (1 + a_percent(percent, "with_tax") / 100))
+
+--- An amount with a discount taken off: discount(50, 10) is 45
+fn discount(amount, percent)
+    an_amount(amount, "discount")
+    if not (percent is number) or not (0 <= percent <= 100)
+        fail "discount needs a percent from 0 to 100, but got {percent}."
+    round_cents(amount * (1 - percent / 100))
+
+--- The coins to give as change, fewest first: change_for(10, 7.37) is {100: 2, 50: 1, 10: 1, 2: 1, 1: 1}
+--- Coins are in cents, biggest first. Give your own list for other currencies: coins: [25, 10, 5, 1]
+fn change_for(paid, price, coins = [100, 50, 20, 10, 5, 2, 1])
+    an_amount(paid, "change_for")
+    an_amount(price, "change_for")
+    if not (coins is list) or length(coins) == 0
+        fail "change_for needs a list of coin sizes in cents, like [25, 10, 5, 1]."
+    var left = in_cents(paid) - in_cents(price)
+    if left < 0
+        fail "{format(paid)} isn't enough to pay {format(price)}: it's {format(-left / 100)} short."
+    var change = {}
+    for coin in sort(coins, by: c => -c)
+        if not (coin is number) or floor(coin) != coin or coin < 1
+            fail "change_for's coins must be whole numbers of cents, 1 or more, but one is {coin}."
+        if left >= coin
+            change[coin] = left // coin
+            left = left % coin
+    if left > 0
+        fail "change_for can't make {left} cents from coins of {coins}."
+    change
+
+
+test "showing amounts"
+    expect format(1234.5) == "$1,234.50"
+    expect format(-5) == "-$5.00"
+    expect format(1234567.891, symbol: "£") == "£1,234,567.89"
+    expect format(3, decimals: 0) == "$3"
+    expect format(0.004) == "$0.00"
+    expect parse("$1,234.50") == 1234.5
+    expect parse("-£5.00") == -5
+    expect round_cents(2.345) == 2.35
+
+test "splitting and tipping"
+    expect split_bill(100, 3) == [33.34, 33.33, 33.33]
+    expect split_bill(90, 3) == [30, 30, 30]
+    expect tip(80, 15) == 12
+    expect with_tax(100, 20) == 120
+    expect discount(50, 10) == 45
+
+test "change"
+    expect change_for(10, 7.37) == {100: 2, 50: 1, 10: 1, 2: 1, 1: 1}
+    expect change_for(1, 1) == {}
+    expect change_for(1, 0.59, coins: [25, 10, 5, 1]) == {25: 1, 10: 1, 5: 1, 1: 1}

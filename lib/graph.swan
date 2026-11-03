@@ -1,0 +1,172 @@
+--- Graphs: things joined by links, like towns and roads or people and friendships.
+--- A graph is a map of node: list of neighbours. make() builds one from pairs; the other tools walk it.
+--- Bring it in with:  use graph   (then graph.shortest_path(roads, "Paris", "Vienna"))
+--- or pick a few:     use make, bfs from graph
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_graph(g, what)
+    if not (g is map)
+        fail "{what} needs a graph: the map that make() gives back."
+    g
+
+hidden fn known(g, node, what)
+    if not has(g, node)
+        fail "{what}: the graph has no node called '{node}'. It has: {join(keys(g), ", ")}"
+
+
+-- ── building ────────────────────────────────────────────
+
+--- A graph from pairs of linked nodes: make([["a", "b"], ["b", "c"]]). Links go both ways
+--- unless you say directed: true. Nodes on their own can be added as single-item lists: ["d"].
+fn make(edges, directed = false)
+    if not (edges is list)
+        fail "make needs a list of pairs, like [[\"a\", \"b\"], [\"b\", \"c\"]]."
+    var g = {}
+    for e in edges
+        if not (e is list) or not (1 <= length(e) <= 2)
+            fail "make needs pairs of two nodes, but got {e}."
+        if length(e) == 1
+            if not has(g, e[0]) then g[e[0]] = []
+        else
+            add_edge(g, e[0], e[1], directed: directed)
+    g
+
+--- Joins a to b (and b to a, unless directed: true), adding either node if it's new.
+fn add_edge(g, a, b, directed = false)
+    a_graph(g, "add_edge")
+    if not has(g, a) then g[a] = []
+    if not has(g, b) then g[b] = []
+    if b not in g[a] then push(g[a], b)
+    if not directed and a not in g[b] then push(g[b], a)
+    g
+
+
+-- ── looking around ──────────────────────────────────────
+
+--- Every node in the graph.
+fn nodes(g) => keys(a_graph(g, "nodes"))
+
+--- The nodes linked straight to node.
+fn neighbours(g, node)
+    known(a_graph(g, "neighbours"), node, "neighbours")
+    copy(g[node])
+
+--- How many links a node has.
+fn degree(g, node) => length(neighbours(g, node))
+
+
+-- ── walking ─────────────────────────────────────────────
+
+--- Breadth-first: visits the start, then all its neighbours, then theirs, rippling outwards.
+fn bfs(g, start)
+    known(a_graph(g, "bfs"), start, "bfs")
+    var seen = [start]
+    var queue = [start]
+    while length(queue) > 0
+        let node = queue[0]
+        queue = if length(queue) > 1 then [queue[i] for i in 1..<length(queue)] else []
+        for n in g[node]
+            if n not in seen
+                push(seen, n)
+                push(queue, n)
+    seen
+
+--- Depth-first: follows one path as far as it goes before backing up to try the next.
+fn dfs(g, start)
+    known(a_graph(g, "dfs"), start, "dfs")
+    var seen = []
+    var stack = [start]
+    while length(stack) > 0
+        let node = pop(stack)
+        if node in seen then skip
+        push(seen, node)
+        for n in reverse(g[node])
+            if n not in seen then push(stack, n)
+    seen
+
+--- The fewest-links route from a to b, as a list of nodes, or nothing if there's no way through.
+fn shortest_path(g, a, b)
+    known(a_graph(g, "shortest_path"), a, "shortest_path")
+    known(g, b, "shortest_path")
+    var came_from = {}
+    came_from[a] = nothing
+    var queue = [a]
+    while length(queue) > 0
+        let node = queue[0]
+        queue = if length(queue) > 1 then [queue[i] for i in 1..<length(queue)] else []
+        if node == b
+            var path = [b]
+            var step = b
+            while came_from[step] != nothing
+                step = came_from[step]
+                insert(path, 0, step)
+            return path
+        for n in g[node]
+            if not has(came_from, n)
+                came_from[n] = node
+                push(queue, n)
+    nothing
+
+
+-- ── the whole picture ───────────────────────────────────
+
+--- The separate islands of the graph: lists of nodes that can reach each other.
+fn components(g)
+    a_graph(g, "components")
+    var seen = []
+    var out = []
+    for node in keys(g)
+        if node in seen then skip
+        let island = bfs(g, node)
+        push(out, island)
+        seen = seen + island
+    out
+
+--- true if every node can be reached from every other.
+fn is_connected(g)
+    if length(keys(a_graph(g, "is_connected"))) == 0 then return true
+    length(components(g)) == 1
+
+--- true if you can walk round in a loop and get back where you started (for undirected graphs).
+fn has_cycle(g)
+    a_graph(g, "has_cycle")
+    var seen = []
+    for start in keys(g)
+        if start in seen then skip
+        var stack = [[start, nothing]]
+        while length(stack) > 0
+            let pair = pop(stack)
+            let node = pair[0]
+            if node in seen then return true
+            push(seen, node)
+            for n in g[node]
+                if n != pair[1] then push(stack, [n, node])
+    false
+
+
+test "building and looking"
+    let roads = make([["Paris", "Lyon"], ["Lyon", "Nice"], ["Paris", "Lille"]])
+    expect sort(nodes(roads)) == ["Lille", "Lyon", "Nice", "Paris"]
+    expect neighbours(roads, "Paris") == ["Lyon", "Lille"]
+    expect degree(roads, "Lyon") == 2
+    let one_way = make([["a", "b"]], directed: true)
+    expect neighbours(one_way, "a") == ["b"] and neighbours(one_way, "b") == []
+    expect nodes(make([["a", "b"], ["c"]])) == ["a", "b", "c"]
+
+test "walking"
+    let g = make([["a", "b"], ["a", "c"], ["b", "d"], ["c", "d"], ["d", "e"]])
+    expect bfs(g, "a") == ["a", "b", "c", "d", "e"]
+    expect dfs(g, "a") == ["a", "b", "d", "c", "e"]
+    expect shortest_path(g, "a", "e") == ["a", "b", "d", "e"]
+    expect shortest_path(g, "a", "a") == ["a"]
+    expect shortest_path(make([["a", "b"], ["c", "d"]]), "a", "d") == nothing
+
+test "the whole picture"
+    let islands = make([["a", "b"], ["c", "d"], ["e"]])
+    expect components(islands) == [["a", "b"], ["c", "d"], ["e"]]
+    expect not is_connected(islands)
+    expect is_connected(make([["a", "b"], ["b", "c"]]))
+    expect has_cycle(make([["a", "b"], ["b", "c"], ["c", "a"]]))
+    expect not has_cycle(make([["a", "b"], ["b", "c"]]))

@@ -1,0 +1,130 @@
+--- Conway's Game of Life: cells on a grid that live, die and are born by simple rules.
+--- A world is a list of rows, each a list of 1 (alive) or 0 (empty).
+--- Bring it in with:  use life   (then say life.to_text(life.step(world)))
+--- or pick a few:     use from_text, step, to_text from life
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_world(cells, what)
+    if not (cells is list) or length(cells) == 0 or not (cells[0] is list)
+        fail "{what} needs a world: a list of rows of 0s and 1s. Make one with make(width, height) or from_text."
+    for row in cells
+        if not (row is list) or length(row) != length(cells[0])
+            fail "{what} needs every row of the world to be the same length."
+    cells
+
+hidden fn size(n, what)
+    if not (n is number) or floor(n) != n or n < 1
+        fail "{what} needs a whole number of 1 or more, but got {n}."
+
+
+-- ── making worlds ───────────────────────────────────────
+
+--- An empty world, width cells across and height cells down.
+fn make(width, height)
+    size(width, "make")
+    size(height, "make")
+    [[0] * width for y in 1..height]
+
+--- A world drawn as text, with # for a living cell and . (or a space) for an empty one.
+fn from_text(picture)
+    if not (picture is text) then fail "from_text needs text drawn with # and . characters."
+    let rows = keep(lines(picture), l => trim(l) != "")
+    if length(rows) == 0 then fail "from_text needs at least one row of # and . characters."
+    let width = max(map(rows, length))
+    [[(if i < length(r) and r[i] == "#" then 1 else 0) for i in 0..<width] for r in rows]
+
+--- The world as text: # for alive, . for empty.
+fn to_text(cells)
+    a_world(cells, "to_text")
+    join([join([(if c == 1 then "#" else ".") for c in row]) for row in cells], "\n")
+
+--- Some well-known patterns as text, by name: glider, blinker, block, toad, beacon.
+fn patterns() => {
+    glider: ".#.\n..#\n###",
+    blinker: "###",
+    block: "##\n##",
+    toad: ".###\n###.",
+    beacon: "##..\n##..\n..##\n..##",
+}
+
+--- Copies a pattern (text, like one from patterns()) into the world with its top-left corner at x, y.
+fn place(cells, pattern, x, y)
+    a_world(cells, "place")
+    var out = copy(cells)
+    for py, row in from_text(pattern)
+        for px, c in row
+            let gx = x + px
+            let gy = y + py
+            if 0 <= gy < length(out) and 0 <= gx < length(out[0])
+                out[gy][gx] = c
+    out
+
+
+-- ── the rules ───────────────────────────────────────────
+
+--- How many of the eight neighbours of the cell at x, y are alive. The edges don't wrap.
+fn neighbours(cells, x, y)
+    a_world(cells, "neighbours")
+    var total = 0
+    for dy in [-1, 0, 1]
+        for dx in [-1, 0, 1]
+            let nx = x + dx
+            let ny = y + dy
+            if (dx != 0 or dy != 0) and 0 <= ny < length(cells) and 0 <= nx < length(cells[0])
+                total += cells[ny][nx]
+    total
+
+--- The next generation. A living cell with 2 or 3 neighbours lives on; an empty one with exactly 3 is born.
+fn step(cells)
+    a_world(cells, "step")
+    var out = []
+    for y, row in cells
+        var new_row = []
+        for x, c in row
+            let n = neighbours(cells, x, y)
+            push(new_row, if (c == 1 and (n == 2 or n == 3)) or (c == 0 and n == 3) then 1 else 0)
+        push(out, new_row)
+    out
+
+--- The world after a number of generations.
+fn run(cells, generations)
+    a_world(cells, "run")
+    if not (generations is number) or floor(generations) != generations or generations < 0
+        fail "run needs a whole number of generations, 0 or more, but got {generations}."
+    var world = cells
+    repeat generations
+        world = step(world)
+    world
+
+--- How many cells are alive.
+fn population(cells) => sum(map(a_world(cells, "population"), sum))
+
+--- true if nothing changes from one generation to the next.
+fn is_still(cells) => step(a_world(cells, "is_still")) == cells
+
+
+test "making worlds"
+    expect make(3, 2) == [[0, 0, 0], [0, 0, 0]]
+    expect from_text("#.\n.#") == [[1, 0], [0, 1]]
+    expect to_text([[1, 0], [0, 1]]) == "#.\n.#"
+    expect population(from_text(patterns().glider)) == 5
+    expect place(make(4, 3), "##", 1, 1) == [[0, 0, 0, 0], [0, 1, 1, 0], [0, 0, 0, 0]]
+
+test "a blinker blinks"
+    let world = place(make(5, 5), patterns().blinker, 1, 2)
+    expect neighbours(world, 2, 1) == 3
+    expect to_text(step(world)) == ".....\n..#..\n..#..\n..#..\n....."
+    expect run(world, 2) == world
+    expect not is_still(world)
+
+test "a block stays still"
+    let world = place(make(4, 4), patterns().block, 1, 1)
+    expect is_still(world)
+    expect population(run(world, 10)) == 4
+
+test "a glider moves"
+    let world = place(make(8, 8), patterns().glider, 0, 0)
+    expect population(run(world, 4)) == 5
+    expect run(world, 4) == place(make(8, 8), patterns().glider, 1, 1)

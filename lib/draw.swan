@@ -1,5 +1,7 @@
 --- Text pictures for the terminal: boxes, tables, bar charts and progress bars.
 --- Every tool gives back text, so show it with say:  say draw.box("Hello!")
+--- Bring it in with:  use draw   (then draw.table(rows))
+--- or pick a few:     use box, bars from draw
 
 
 -- ── lining things up ────────────────────────────────────

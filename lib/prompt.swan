@@ -1,0 +1,105 @@
+--- Asking the person running the program for things: a line of text, a number, yes or no,
+--- or a pick from a menu. Each one keeps asking until it gets a sensible answer.
+--- Bring it in with:  use prompt   (then let age = prompt.number_from("How old are you? ", 0, 120))
+--- or pick a few:     use yes_no, choose from prompt
+
+
+-- ── the pure parts (easy to test) ───────────────────────
+
+--- true for y/yes, false for n/no, and nothing for anything else. Capitals and spaces don't matter.
+fn parse_yes_no(answer)
+    if not (answer is text) then return nothing
+    match lower(trim(answer))
+        "y" or "yes" or "yeah" or "yep" or "ok" => true
+        "n" or "no" or "nope" => false
+        _ => nothing
+
+--- The option an answer points at: its number in the menu (from 1) or its text. nothing if neither.
+fn parse_choice(answer, options)
+    some_options(options, "parse_choice")
+    if not (answer is text) then return nothing
+    let clean = lower(trim(answer))
+    for i, option in options
+        if clean == text(i + 1) or clean == lower(text(option)) then return option
+    nothing
+
+--- The numbered menu that choose shows, as text.
+fn menu_text(question, options)
+    some_options(options, "menu_text")
+    var out = [text(question)]
+    for i, option in options
+        push(out, "  {i + 1}. {option}")
+    join(out, "\n")
+
+hidden fn some_options(options, what)
+    if not (options is list) or length(options) == 0
+        fail "{what} needs a list of options to pick from, like [\"tea\", \"coffee\"]."
+
+
+-- ── asking ──────────────────────────────────────────────
+
+--- Asks for a line of text, trimmed. If the person just presses Enter, you get the fallback.
+fn line(question, fallback = nothing)
+    let answer = trim(ask(question))
+    if answer == "" then return fallback
+    answer
+
+--- Asks for a number, between low and high if you give them, and asks again after a bad answer.
+--- After five bad answers it gives up with an error.
+fn number_from(question, low = nothing, high = nothing)
+    repeat 5
+        let answer = trim(ask(question))
+        var value = nothing
+        try
+            value = number(answer)
+        otherwise problem
+            say "Please type a number."
+        if value != nothing
+            if low != nothing and value < low
+                say "Please type a number of at least {low}."
+            elif high != nothing and value > high
+                say "Please type a number of at most {high}."
+            else
+                return value
+    fail "I asked five times and didn't get a usable number."
+
+--- Asks a yes-or-no question and gives back true or false. Keeps asking until it gets one.
+fn yes_no(question)
+    repeat 5
+        let parsed = parse_yes_no(ask(question))
+        if parsed != nothing then return parsed
+        say "Please answer yes or no."
+    fail "I asked five times and didn't get a yes or a no."
+
+--- The same as yes_no, for when the question is "Are you sure?"
+fn confirm(question = "Are you sure? ") => yes_no(question)
+
+--- Shows a numbered menu and gives back the option the person chose, by number or by name.
+fn choose(question, options)
+    some_options(options, "choose")
+    say menu_text(question, options)
+    repeat 5
+        let picked = parse_choice(ask("> "), options)
+        if picked != nothing then return picked
+        say "Please type a number from 1 to {length(options)}."
+    fail "I asked five times and didn't get a choice."
+
+--- Waits until the person presses Enter.
+fn pause(message = "Press Enter to continue… ")
+    ask(message)
+    nothing
+
+
+test "reading yes and no"
+    expect parse_yes_no("y") == true and parse_yes_no(" YES ") == true
+    expect parse_yes_no("n") == false and parse_yes_no("Nope") == false
+    expect parse_yes_no("maybe") == nothing and parse_yes_no(3) == nothing
+
+test "reading a choice"
+    let drinks = ["tea", "coffee"]
+    expect parse_choice("2", drinks) == "coffee"
+    expect parse_choice(" Tea ", drinks) == "tea"
+    expect parse_choice("3", drinks) == nothing and parse_choice("milk", drinks) == nothing
+
+test "the menu"
+    expect menu_text("Drink?", ["tea", "coffee"]) == "Drink?\n  1. tea\n  2. coffee"

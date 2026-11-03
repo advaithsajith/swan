@@ -1,0 +1,113 @@
+--- Counting and listing the ways things can be arranged: combinations, permutations and more.
+--- Bring it in with:  use combos   (then combos.choose(5, 2))
+--- or pick a few:     use combinations, powerset from combos
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn whole(n, what)
+    if not (n is number) or floor(n) != n or n < 0
+        fail "{what} needs a whole number of 0 or more, but got {n}."
+    n
+
+hidden fn a_list(xs, what, most = 20)
+    let items = if xs is range then map(xs, x => x) else xs
+    if not (items is list)
+        fail "{what} needs a list, but got {type(xs)}."
+    if length(items) > most
+        fail "{what} would make far too many results from {length(items)} items. Give it {most} or fewer."
+    items
+
+hidden fn factorial(n)
+    var total = 1
+    var k = 2
+    while k <= n
+        total *= k
+        k += 1
+    total
+
+
+-- ── counting ────────────────────────────────────────────
+
+--- How many ways to pick k things from n when order doesn't matter: choose(5, 2) is 10
+fn choose(n, k)
+    whole(n, "choose")
+    whole(k, "choose")
+    if k > n then return 0
+    var total = 1
+    for i in 0..<min(k, n - k)
+        total = total * (n - i) // (i + 1)
+    total
+
+--- How many ways to line up k things picked from n when order matters: permutations_count(5, 2) is 20
+fn permutations_count(n, k)
+    whole(n, "permutations_count")
+    whole(k, "permutations_count")
+    if k > n then return 0
+    factorial(n) // factorial(n - k)
+
+
+-- ── listing ─────────────────────────────────────────────
+
+--- Every order the items can go in: permutations([1, 2, 3]) has 6 lists.
+--- Only for 10 items or fewer: 11 items would already be nearly 40 million orders.
+fn permutations(xs)
+    let items = a_list(xs, "permutations", most: 10)
+    if length(items) <= 1 then return [items]
+    var out = []
+    for i, x in items
+        let others = [items[j] for j, _ in items if j != i]
+        for p in permutations(others)
+            push(out, [x] + p)
+    out
+
+--- Every way to pick k items, ignoring order: combinations(["a", "b", "c"], 2) is [["a", "b"], ["a", "c"], ["b", "c"]]
+fn combinations(xs, k)
+    let items = a_list(xs, "combinations")
+    whole(k, "combinations")
+    if k > length(items) then return []
+    if k == 0 then return [[]]
+    var out = []
+    for i, x in items
+        let later = if i + 1 < length(items) then [items[j] for j in (i + 1)..<length(items)] else []
+        for c in combinations(later, k - 1)
+            push(out, [x] + c)
+    out
+
+--- Every possible group from the items, from none of them to all of them: 2 to the power of the count.
+fn powerset(xs)
+    let items = a_list(xs, "powerset", most: 16)
+    var out = [[]]
+    for x in items
+        out = out + [group + [x] for group in out]
+    out
+
+--- Every pairing of one item from a with one from b: product([1, 2], ["x", "y"]) is [[1, "x"], [1, "y"], [2, "x"], [2, "y"]]
+fn product(a, b)
+    let left = a_list(a, "product", most: 1000)
+    let right = a_list(b, "product", most: 1000)
+    var out = []
+    for x in left
+        for y in right
+            push(out, [x, y])
+    out
+
+
+test "counting"
+    expect choose(5, 2) == 10
+    expect choose(52, 5) == 2598960
+    expect choose(3, 5) == 0
+    expect choose(4, 0) == 1
+    expect permutations_count(5, 2) == 20
+    expect permutations_count(4, 4) == 24
+
+test "listing"
+    expect permutations([1, 2, 3]) == [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]
+    expect permutations([]) == [[]]
+    expect combinations(["a", "b", "c"], 2) == [["a", "b"], ["a", "c"], ["b", "c"]]
+    expect combinations(1..4, 3) == [[1, 2, 3], [1, 2, 4], [1, 3, 4], [2, 3, 4]]
+    expect combinations([1, 2], 3) == []
+    expect length(combinations(1..10, 4)) == choose(10, 4)
+    expect powerset([1, 2]) == [[], [1], [2], [1, 2]]
+    expect length(powerset(1..5)) == 32
+    expect product([1, 2], ["x", "y"]) == [[1, "x"], [1, "y"], [2, "x"], [2, "y"]]
