@@ -328,6 +328,11 @@ herons │███ 3
 |---|---|
 | **maths** | `gcd` `lcm` `is_even` `is_odd` `is_prime` `primes` `factors` `factorial` `fibonacci` `digits` `clamp` `lerp` `percent` `median` `mode` `spread` `deviation` |
 | **draw** | `box` `table` `bars` `progress` `pad` `divider` |
+| **lists** | `take` `take_last` `rest` `chunk` `windows` `flatten` `compact` `without` `rotate` `interleave` `transpose` `index_of` `tally` `group_by` `partition` `max_by` `min_by` `sum_by` |
+| **prose** | `capitalize` `title_case` `is_palindrome` `count_of` `vowels` `is_blank` `acronym` `shorten` `wrap` `indent` `slug` `pig_latin` `caesar` `plural` `ordinal` `with_commas` `pad_zeros` |
+| **chance** | `coin` `dice` `roll` `maybe` `between` `shuffle` `pick` `pick_many` `weighted` `code` |
+| **clock** | `date` `timestamp` `date_text` `time_text` `weekday` `month_name` `is_leap_year` `days_in_month` `days_between` `duration` `Stopwatch` and the constants `second` `minute` `hour` `day` `week` |
+| **units** | `temperature` `distance` `weight` `speed` `file_size` |
 
 `help(maths)` lists what a library has. If something goes wrong inside a library, the error points
 at the line in *your* code that called it. Libraries live in the [lib](lib) folder; each one has its
@@ -363,6 +368,7 @@ gets you the Swan way to say it. Typos get "Did you mean …?"
 | [bank.swan](examples/bank.swan) | a small program with tests |
 | [fizzbuzz.swan](examples/fizzbuzz.swan) | the classic, Swan-style |
 | [libraries.swan](examples/libraries.swan) | `use`, with the maths and draw libraries |
+| [toolbox.swan](examples/toolbox.swan) | the lists, prose, chance, clock and units libraries |
 
 ---
 

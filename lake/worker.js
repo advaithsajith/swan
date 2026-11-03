@@ -40,7 +40,7 @@ def check(job):
         _send("reply", id=job["id"], error=_error(e, job["code"]), entries=[])
 `;
 
-const LIBRARIES = ["maths", "draw"];
+const LIBRARIES = ["maths", "draw", "lists", "prose", "chance", "clock", "units"];
 
 let python = null;
 

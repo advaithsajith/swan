@@ -1,0 +1,50 @@
+-- Five more libraries: lists, prose, chance, clock and units.
+
+use lists
+use prose
+use chance
+use clock
+use units
+
+-- lists: pieces, groups and counts
+let birds = ["swan", "duck", "heron", "swan", "coot", "swan", "duck"]
+say "Tally:", lists.tally(birds)
+say "In pairs:", lists.chunk(birds, 2)
+say "By length:", lists.group_by(lists.without(birds, "swan"), length)
+say "Longest name:", lists.max_by(birds, length)
+
+-- prose: words and numbers as text
+say prose.title_case("the swan princess"), "→", prose.slug("The Swan Princess!")
+say prose.plural(1, "cygnet"), "and", prose.plural(4, "cygnet")
+say "Odette came", prose.ordinal(1) + ", Odile", prose.ordinal(2)
+say prose.with_commas(1877000), "visitors"
+say prose.caesar("meet at the lake", 3), "→", prose.caesar(prose.caesar("meet at the lake", 3), -3)
+say prose.wrap("A swan glides across the lake without a single ripple on the water.", 32)
+
+-- chance: coins, dice and shuffles
+say "Coin:", chance.coin(), "· dice:", chance.roll(3), "· room code:", chance.code(5)
+say "Tonight's order:", chance.shuffle(["Odette", "Odile", "Siegfried", "Rothbart"])
+say "Weather:", chance.weighted({sunny: 5, cloudy: 3, storm: 1})
+
+-- clock: dates, durations and a stopwatch
+say "Today is", clock.weekday(), clock.date_text(), "at", clock.time_text(), "(UTC)"
+let opening = clock.timestamp(1877, 3, 4)
+say "Swan Lake opened on a", clock.weekday(opening) + ",", clock.date_text(opening)
+say "That was", prose.with_commas(clock.days_between(opening, now())), "days ago"
+let watch = clock.Stopwatch()
+let total = sum(1..200000)
+say "Adding up 200,000 numbers took", clock.duration(watch.elapsed()), "(or so)"
+
+-- units: changing between measurements
+say "A swan's 2.4 m wingspan is", round(units.distance(2.4, "m", "ft"), 1), "ft"
+say "12 kg is", round(units.weight(12, "kg", "lb"), 1), "lb"
+say "Flying at 60 km/h is", round(units.speed(60, "km/h", "mph"), 1), "mph"
+say "Lake water at 18 °C is", round(units.temperature(18, "c", "f"), 1), "°F"
+say "This program is about", units.file_size(1800)
+
+test "the toolbox fits together"
+    expect lists.take(lists.rotate(1..5, 2), 2) == [3, 4]
+    expect prose.acronym("Royal Swan Society") == "RSS"
+    expect sort(chance.pick_many(birds, 7)) == sort(birds)
+    expect clock.weekday(clock.timestamp(1877, 3, 4)) == "Sunday"
+    expect units.temperature(212, "f", "c") == 100

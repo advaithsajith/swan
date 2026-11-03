@@ -8,6 +8,12 @@
   statistics (`median`, `mode`, `spread`, `deviation`).
 - **draw library:** text pictures for the terminal: `box`, `table`, `bars`, `progress`, `pad` and `divider`.
 - Libraries work in Lake on your computer and in the browser; there's a new [libraries.swan](examples/libraries.swan) example.
+- **Five more libraries**, shown off in [toolbox.swan](examples/toolbox.swan):
+  - **lists:** `take`, `rest`, `chunk`, `windows`, `flatten`, `rotate`, `transpose`, `tally`, `group_by`, `partition`, `max_by` and more.
+  - **prose:** text tools like `title_case`, `slug`, `wrap`, `plural`, `ordinal`, `with_commas`, plus `pig_latin` and the `caesar` cipher.
+  - **chance:** `coin`, `dice`, `roll`, `maybe`, `shuffle`, `pick_many`, `weighted` and random `code`s.
+  - **clock:** `date`, `timestamp`, `date_text`, `weekday`, `days_between`, `duration`, a `Stopwatch` shape, and constants like `clock.day`.
+  - **units:** `temperature`, `distance`, `weight`, `speed` and `file_size`.
 
 ## 0.3 · preview
 

@@ -1,0 +1,189 @@
+--- Dates and times: what day it is, taking a time apart, and saying how long things take.
+--- Times are counted in seconds, the way now() gives them. Everything is in UTC, the world's
+--- reference clock, so the hour may differ from the clock on your wall.
+--- Bring it in with:  use clock   (then clock.date_text())
+--- or pick a few:     use duration, Stopwatch from clock
+
+--- How many seconds there are in each: now() + 3 * clock.day is three days from now.
+let second = 1
+let minute = 60
+let hour = 3600
+let day = 86400
+let week = 604800
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_stamp(stamp, what)
+    if stamp == nothing then return now()
+    if not (stamp is number)
+        fail "{what} needs a time in seconds, like now() gives, but got {type(stamp)}."
+    stamp
+
+hidden fn whole(n, what, low, high)
+    if not (n is number) or floor(n) != n or not (low <= n <= high)
+        fail "{what} needs a whole number from {low} to {high}, but got {n}."
+
+hidden fn month_names() => ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+hidden fn day_names() => ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+hidden fn two(n) => (if n < 10 then "0" else "") + text(n)
+
+
+-- ── the calendar's arithmetic ───────────────────────────
+
+--- Days since 1 January 1970 for a calendar date.
+hidden fn days_since_1970(year, month, day_of_month)
+    let y = if month <= 2 then year - 1 else year
+    let era = y // 400
+    let yoe = y - era * 400
+    let doy = (153 * (if month > 2 then month - 3 else month + 9) + 2) // 5 + day_of_month - 1
+    let doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+    era * 146097 + doe - 719468
+
+--- [year, month, day] for a number of days since 1 January 1970.
+hidden fn calendar(days)
+    let z = days + 719468
+    let era = z // 146097
+    let doe = z - era * 146097
+    let yoe = (doe - doe // 1460 + doe // 36524 - doe // 146096) // 365
+    let doy = doe - (365 * yoe + yoe // 4 - yoe // 100)
+    let mp = (5 * doy + 2) // 153
+    let d = doy - (153 * mp + 2) // 5 + 1
+    let m = if mp < 10 then mp + 3 else mp - 9
+    [yoe + era * 400 + (if m <= 2 then 1 else 0), m, d]
+
+
+-- ── taking a time apart ─────────────────────────────────
+
+--- Takes a time apart into a map: {year, month, day, hour, minute, second, weekday, month_name}.
+--- With nothing given, it's the time right now.
+fn date(stamp = nothing)
+    let s = floor(a_stamp(stamp, "date"))
+    let days = s // 86400
+    let left = s - days * 86400
+    let ymd = calendar(days)
+    {year: ymd[0], month: ymd[1], day: ymd[2], hour: left // 3600, minute: (left % 3600) // 60, second: left % 60,
+     weekday: day_names()[(days + 3) % 7], month_name: month_names()[ymd[1] - 1]}
+
+--- The time in seconds for a calendar date, the opposite of date(): timestamp(2026, 12, 25, hour: 9)
+fn timestamp(year, month, day, hour = 0, minute = 0, second = 0)
+    whole(year, "timestamp", 1, 9999)
+    whole(month, "timestamp", 1, 12)
+    whole(day, "timestamp", 1, days_in_month(year, month))
+    whole(hour, "timestamp", 0, 23)
+    whole(minute, "timestamp", 0, 59)
+    whole(second, "timestamp", 0, 59)
+    days_since_1970(year, month, day) * 86400 + hour * 3600 + minute * 60 + second
+
+--- A date as text: "2026-11-03". With nothing given, today.
+fn date_text(stamp = nothing)
+    let d = date(a_stamp(stamp, "date_text"))
+    "{d.year}-{two(d.month)}-{two(d.day)}"
+
+--- The time of day as text: "19:26". Add seconds: true for "19:26:05". With nothing given, right now.
+fn time_text(stamp = nothing, seconds = false)
+    let d = date(a_stamp(stamp, "time_text"))
+    "{two(d.hour)}:{two(d.minute)}" + (if seconds then ":{two(d.second)}" else "")
+
+--- The day of the week, like "Monday". With nothing given, today.
+fn weekday(stamp = nothing) => date(a_stamp(stamp, "weekday")).weekday
+
+--- The name of a month from its number: month_name(3) is "March"
+fn month_name(month)
+    whole(month, "month_name", 1, 12)
+    month_names()[month - 1]
+
+
+-- ── the calendar ────────────────────────────────────────
+
+--- true in years that have a 29th of February.
+fn is_leap_year(year)
+    whole(year, "is_leap_year", 1, 9999)
+    year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+--- How many days the month has: days_in_month(2024, 2) is 29
+fn days_in_month(year, month)
+    whole(year, "days_in_month", 1, 9999)
+    whole(month, "days_in_month", 1, 12)
+    match month
+        2 => if is_leap_year(year) then 29 else 28
+        4 or 6 or 9 or 11 => 30
+        _ => 31
+
+--- Whole days from one time to another. Negative if finish comes before start.
+fn days_between(start, finish)
+    let gap = (a_stamp(finish, "days_between") - a_stamp(start, "days_between")) / 86400
+    if gap < 0 then return -floor(-gap)
+    floor(gap)
+
+
+-- ── how long things take ────────────────────────────────
+
+--- Seconds as something readable: duration(3725) is "1h 2m 5s"
+fn duration(seconds)
+    if not (seconds is number) or seconds < 0
+        fail "duration needs a number of seconds, 0 or more, but got {seconds}."
+    var left = floor(seconds)
+    var parts = []
+    for unit in [[86400, "d"], [3600, "h"], [60, "m"], [1, "s"]]
+        let amount = left // unit[0]
+        if amount > 0
+            push(parts, "{amount}{unit[1]}")
+            left -= amount * unit[0]
+    if length(parts) == 0 then return "0s"
+    join(parts, " ")
+
+--- A stopwatch. Make one with Stopwatch(), then ask it elapsed() for the seconds so far.
+shape Stopwatch(hidden started = now())
+    --- Seconds since the stopwatch was made or last reset.
+    fn elapsed() => now() - started
+
+    --- Starts counting from zero again.
+    fn reset()
+        started = now()
+
+    --- The time so far as text, like "1m 5s".
+    fn show() => duration(elapsed())
+
+
+test "taking a time apart"
+    let start = date(0)
+    expect [start.year, start.month, start.day, start.hour] == [1970, 1, 1, 0]
+    expect start.weekday == "Thursday"
+    let xmas = date(timestamp(2026, 12, 25, hour: 9, minute: 30))
+    expect [xmas.year, xmas.month, xmas.day, xmas.hour, xmas.minute, xmas.second] == [2026, 12, 25, 9, 30, 0]
+    expect xmas.weekday == "Friday"
+    expect xmas.month_name == "December"
+    expect timestamp(1970, 1, 2) == 86400
+    expect date(timestamp(2000, 2, 29)).day == 29
+    expect date(timestamp(1969, 7, 20, hour: 20, minute: 17)).year == 1969
+    expect date().year >= 2026
+
+test "text for dates and times"
+    expect date_text(timestamp(2026, 11, 3)) == "2026-11-03"
+    expect time_text(timestamp(2026, 11, 3, hour: 19, minute: 26, second: 5)) == "19:26"
+    expect time_text(timestamp(2026, 11, 3, hour: 19, minute: 26, second: 5), seconds: true) == "19:26:05"
+    expect weekday(timestamp(2026, 11, 3)) == "Tuesday"
+    expect month_name(3) == "March"
+
+test "the calendar"
+    expect is_leap_year(2024) and is_leap_year(2000)
+    expect not is_leap_year(1900) and not is_leap_year(2026)
+    expect days_in_month(2024, 2) == 29
+    expect days_in_month(2026, 2) == 28
+    expect days_in_month(2026, 4) == 30
+    expect days_in_month(2026, 12) == 31
+    expect days_between(timestamp(2026, 11, 3), timestamp(2026, 12, 25)) == 52
+    expect days_between(timestamp(2026, 12, 25), timestamp(2026, 11, 3)) == -52
+    expect 2 * day == 172800 and week == 7 * day
+
+test "how long things take"
+    expect duration(3725) == "1h 2m 5s"
+    expect duration(0) == "0s"
+    expect duration(90000) == "1d 1h"
+    expect duration(59.9) == "59s"
+    let watch = Stopwatch()
+    expect watch.elapsed() < 5
+    expect watch.show() == "0s"
+    watch.reset()
+    expect watch.elapsed() < 5

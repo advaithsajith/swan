@@ -1,0 +1,196 @@
+--- Extra tools for lists: taking pieces, reshaping, grouping and counting.
+--- Bring it in with:  use lists   (then lists.chunk([1, 2, 3, 4, 5], 2))
+--- or pick a few:     use chunk, tally from lists
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn a_list(xs, what)
+    if xs is range then return map(xs, x => x)
+    if not (xs is list)
+        fail "{what} needs a list, but got {type(xs)}."
+    xs
+
+hidden fn whole(n, what, least = 0)
+    if not (n is number) or floor(n) != n or n < least
+        fail "{what} needs a whole number of {least} or more, but got {n}."
+
+
+-- ── taking pieces ───────────────────────────────────────
+
+--- The first count items. If there aren't that many, you get what there is.
+fn take(xs, count)
+    let items = a_list(xs, "take")
+    whole(count, "take")
+    let n = min(count, length(items))
+    if n == 0 then return []
+    [items[i] for i in 0..<n]
+
+--- The last count items.
+fn take_last(xs, count)
+    let items = a_list(xs, "take_last")
+    whole(count, "take_last")
+    let n = min(count, length(items))
+    if n == 0 then return []
+    [items[i] for i in (length(items) - n)..<length(items)]
+
+--- Everything after the first count items (just the first one, unless you say otherwise).
+fn rest(xs, count = 1)
+    let items = a_list(xs, "rest")
+    whole(count, "rest")
+    if count >= length(items) then return []
+    [items[i] for i in count..<length(items)]
+
+--- Cuts a list into pieces of size items each. The last piece may be smaller.
+fn chunk(xs, size)
+    let items = a_list(xs, "chunk")
+    whole(size, "chunk", least: 1)
+    var out = []
+    var piece = []
+    for x in items
+        push(piece, x)
+        if length(piece) == size
+            push(out, piece)
+            piece = []
+    if length(piece) > 0 then push(out, piece)
+    out
+
+--- Every run of size items that sit next to each other: windows([1, 2, 3], 2) is [[1, 2], [2, 3]]
+fn windows(xs, size)
+    let items = a_list(xs, "windows")
+    whole(size, "windows", least: 1)
+    if size > length(items) then return []
+    [[items[i + k] for k in 0..<size] for i in 0..(length(items) - size)]
+
+
+-- ── reshaping ───────────────────────────────────────────
+
+--- Opens up lists inside lists, however deep, into one flat list.
+fn flatten(xs)
+    var out = []
+    for x in a_list(xs, "flatten")
+        out = if x is list then out + flatten(x) else out + [x]
+    out
+
+--- The list without any nothing values.
+fn compact(xs) => keep(a_list(xs, "compact"), x => x != nothing)
+
+--- A copy of the list with every unwanted item taken out: without([1, 2, 1, 3], 1, 3) is [2]
+fn without(xs, ...unwanted) => keep(a_list(xs, "without"), x => x not in unwanted)
+
+--- Moves the first steps items to the end: rotate([1, 2, 3]) is [2, 3, 1]. Negative steps go the other way.
+fn rotate(xs, steps = 1)
+    let items = a_list(xs, "rotate")
+    whole(abs(steps), "rotate")
+    if length(items) == 0 then return []
+    let n = steps % length(items)
+    rest(items, n) + take(items, n)
+
+--- Takes turns from each list: interleave([1, 2], ["a", "b"]) is [1, "a", 2, "b"].
+--- When one list runs out, the rest of the other follows.
+fn interleave(a, b)
+    let left = a_list(a, "interleave")
+    let right = a_list(b, "interleave")
+    var out = []
+    for i in 0..<max(length(left), length(right))
+        if i < length(left) then push(out, left[i])
+        if i < length(right) then push(out, right[i])
+    out
+
+--- Turns rows into columns: transpose([[1, 2], [3, 4]]) is [[1, 3], [2, 4]]
+fn transpose(rows)
+    let items = a_list(rows, "transpose")
+    if length(items) == 0 then return []
+    for r in items
+        if not (r is list) or length(r) != length(items[0])
+            fail "transpose needs a list of lists that are all the same length."
+    if length(items[0]) == 0 then return []
+    [[r[i] for r in items] for i in 0..<length(items[0])]
+
+
+-- ── finding and counting ────────────────────────────────
+
+--- Where item first appears, counting from 0, or nothing if it isn't there.
+fn index_of(xs, item)
+    for i, x in a_list(xs, "index_of")
+        if x == item then return i
+    nothing
+
+--- Counts how often each item appears: tally(["a", "b", "a"]) is {a: 2, b: 1}
+fn tally(xs)
+    var counts = {}
+    for x in a_list(xs, "tally")
+        counts[x] = get(counts, x, 0) + 1
+    counts
+
+--- Sorts items into a map by what the function gives back: group_by(names, length)
+fn group_by(xs, f)
+    var groups = {}
+    for x in a_list(xs, "group_by")
+        let key = f(x)
+        if not has(groups, key) then groups[key] = []
+        push(groups[key], x)
+    groups
+
+--- Splits a list in two: [the items the function says yes to, all the others].
+fn partition(xs, f)
+    let items = a_list(xs, "partition")
+    [keep(items, f), drop(items, f)]
+
+--- The item the function gives the biggest value for: max_by(swans, s => s.wingspan)
+fn max_by(xs, f) => best(xs, f, "max_by", (a, b) => a > b)
+
+--- The item the function gives the smallest value for.
+fn min_by(xs, f) => best(xs, f, "min_by", (a, b) => a < b)
+
+hidden fn best(xs, f, what, better)
+    let items = a_list(xs, what)
+    if length(items) == 0
+        fail "{what} needs at least one item, but the list is empty."
+    var winner = items[0]
+    var score = f(winner)
+    for x in rest(items)
+        let s = f(x)
+        if better(s, score)
+            winner, score = x, s
+    winner
+
+--- Adds up what the function gives for each item: sum_by(orders, o => o.price)
+fn sum_by(xs, f) => sum(map(a_list(xs, "sum_by"), f))
+
+
+test "taking pieces"
+    expect take([1, 2, 3], 2) == [1, 2]
+    expect take([1, 2], 5) == [1, 2]
+    expect take(1..10, 3) == [1, 2, 3]
+    expect take_last([1, 2, 3], 2) == [2, 3]
+    expect take_last([1, 2, 3], 0) == []
+    expect rest([1, 2, 3]) == [2, 3]
+    expect rest([1, 2, 3], 2) == [3]
+    expect rest([1, 2, 3], 5) == []
+
+test "chunks and windows"
+    expect chunk([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
+    expect chunk([], 3) == []
+    expect windows([1, 2, 3], 2) == [[1, 2], [2, 3]]
+    expect windows([1], 2) == []
+
+test "reshaping"
+    expect flatten([1, [2, [3, 4]], 5]) == [1, 2, 3, 4, 5]
+    expect compact([1, nothing, 2]) == [1, 2]
+    expect without([1, 2, 1, 3], 1, 3) == [2]
+    expect rotate([1, 2, 3]) == [2, 3, 1]
+    expect rotate([1, 2, 3], -1) == [3, 1, 2]
+    expect rotate([], 2) == []
+    expect interleave([1, 2, 3], ["a"]) == [1, "a", 2, 3]
+    expect transpose([[1, 2], [3, 4]]) == [[1, 3], [2, 4]]
+
+test "finding and counting"
+    expect index_of(["a", "b"], "b") == 1
+    expect index_of(["a"], "z") == nothing
+    expect tally(["a", "b", "a"]) == {a: 2, b: 1}
+    expect group_by(["ox", "cat", "emu"], length) == {2: ["ox"], 3: ["cat", "emu"]}
+    expect partition(1..6, n => n % 2 == 0) == [[2, 4, 6], [1, 3, 5]]
+    expect max_by(["ox", "swan", "cat"], length) == "swan"
+    expect min_by([3, -5, 2], abs) == 2
+    expect sum_by([{n: 2}, {n: 5}], x => x.n) == 7

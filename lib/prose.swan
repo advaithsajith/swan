@@ -1,0 +1,210 @@
+--- Playing with text: capital letters, counting, wrapping, slugs, ciphers and plurals.
+--- Bring it in with:  use prose   (then prose.title_case("swan lake"))
+--- or pick a few:     use slug, ordinal from prose
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn some_text(t, what)
+    if not (t is text)
+        fail "{what} works on text, but got {type(t)}."
+    t
+
+hidden fn is_letter(c) => upper(c) != lower(c)
+hidden fn is_digit(c) => c in "0123456789"
+hidden fn is_vowel(c) => lower(c) in "aeiou"
+hidden fn alphabet() => "abcdefghijklmnopqrstuvwxyz"
+
+--- The characters from position start up to (but not including) finish.
+hidden fn cut(t, start, finish)
+    if start >= finish then return ""
+    join([t[i] for i in start..<finish])
+
+hidden fn index_in(t, c)
+    for i, ch in t
+        if ch == c then return i
+    nothing
+
+
+-- ── capital letters ─────────────────────────────────────
+
+--- Makes the first letter a capital and leaves the rest alone: capitalize("swan") is "Swan"
+fn capitalize(t)
+    some_text(t, "capitalize")
+    if t == "" then return ""
+    upper(t[0]) + cut(t, 1, length(t))
+
+--- A capital at the start of every word: title_case("swan lake") is "Swan Lake"
+fn title_case(t) => join(split(some_text(t, "title_case"), " ") |> map(capitalize), " ")
+
+
+-- ── looking inside text ─────────────────────────────────
+
+--- true if the text reads the same backwards, ignoring capitals, spaces and punctuation.
+fn is_palindrome(t)
+    let clean = join(keep(chars(lower(some_text(t, "is_palindrome"))), c => is_letter(c) or is_digit(c)))
+    clean != "" and clean == reverse(clean)
+
+--- How many times piece appears in the text: count_of("banana", "an") is 2
+fn count_of(t, piece)
+    some_text(t, "count_of")
+    if piece == ""
+        fail "count_of needs something to look for, but piece is empty."
+    length(split(t, piece)) - 1
+
+--- How many vowels (a, e, i, o, u) the text has.
+fn vowels(t) => count(chars(some_text(t, "vowels")), is_vowel)
+
+--- true if the text is empty or nothing but spaces.
+fn is_blank(t) => trim(some_text(t, "is_blank")) == ""
+
+--- The first letters of each word, in capitals: acronym("portable network graphics") is "PNG"
+fn acronym(t) => words(some_text(t, "acronym")) |> map(w => upper(w[0])) |> join
+
+
+-- ── shaping text ────────────────────────────────────────
+
+--- Cuts text down to at most width characters, ending in … if it had to cut something off.
+fn shorten(t, width, tail = "…")
+    some_text(t, "shorten")
+    if length(t) <= width then return t
+    cut(t, 0, max(width - length(tail), 0)) + tail
+
+--- Breaks text into lines no longer than width, at the spaces between words.
+fn wrap(t, width = 60)
+    var out = []
+    var line = ""
+    for w in words(some_text(t, "wrap"))
+        if line == ""
+            line = w
+        elif length(line) + 1 + length(w) <= width
+            line += " " + w
+        else
+            push(out, line)
+            line = w
+    if line != "" then push(out, line)
+    join(out, "\n")
+
+--- Puts spaces at the start of every line.
+fn indent(t, spaces = 4) => lines(some_text(t, "indent")) |> map(l => " " * spaces + l) |> join("\n")
+
+--- Text that's safe for a web address or a file name: slug("Swan Lake, 1877!") is "swan-lake-1877"
+fn slug(t)
+    let cleaned = chars(lower(some_text(t, "slug"))) |> map(c => if is_letter(c) or is_digit(c) then c else " ")
+    join(words(join(cleaned)), "-")
+
+
+-- ── word games ──────────────────────────────────────────
+
+--- Pig Latin. Words that start with a vowel get "way"; the others move their first sounds to the end, plus "ay".
+fn pig_latin(t) => words(some_text(t, "pig_latin")) |> map(pig_word) |> join(" ")
+
+hidden fn pig_word(w)
+    if is_vowel(w[0]) then return w + "way"
+    var i = 0
+    while i < length(w) and not is_vowel(w[i])
+        i += 1
+    cut(w, i, length(w)) + cut(w, 0, i) + "ay"
+
+--- Moves every letter steps places along the alphabet (the Caesar cipher). Undo it with a negative number.
+fn caesar(t, steps)
+    if not (steps is number) or floor(steps) != steps
+        fail "caesar needs a whole number of steps, but got {steps}."
+    chars(some_text(t, "caesar")) |> map(c => shift_letter(c, steps)) |> join
+
+hidden fn shift_letter(c, steps)
+    let pos = index_in(alphabet(), lower(c))
+    if pos == nothing then return c
+    let moved = alphabet()[(pos + steps) % 26]
+    if c == upper(c) then return upper(moved)
+    moved
+
+
+-- ── numbers in words ────────────────────────────────────
+
+--- A count with the right word: plural(1, "swan") is "1 swan" and plural(3, "swan") is "3 swans".
+--- Give the plural yourself for unusual words: plural(2, "goose", "geese")
+fn plural(count, word, plural_form = nothing)
+    some_text(word, "plural")
+    if count == 1 then return "1 {word}"
+    "{count} {plural_form ?? pluralize(word)}"
+
+hidden fn pluralize(w)
+    if w == "" then return w
+    let ending = w[-1]
+    if ending == "y" and length(w) > 1 and not is_vowel(w[-2])
+        return cut(w, 0, length(w) - 1) + "ies"
+    if ending in "sxz" or ends_with(w, "ch") or ends_with(w, "sh")
+        return w + "es"
+    w + "s"
+
+--- A number with its ending: ordinal(1) is "1st", ordinal(22) is "22nd", ordinal(13) is "13th"
+fn ordinal(n)
+    if not (n is number) or floor(n) != n
+        fail "ordinal needs a whole number, but got {n}."
+    var ending = "th"
+    if not (11 <= abs(n) % 100 <= 13)
+        ending = match abs(n) % 10
+            1 => "st"
+            2 => "nd"
+            3 => "rd"
+            _ => "th"
+    "{n}{ending}"
+
+--- Commas every three digits: with_commas(1234567) is "1,234,567"
+fn with_commas(n)
+    if not (n is number)
+        fail "with_commas needs a number, but got {type(n)}."
+    let parts = split(text(abs(n)), ".")
+    var out = ""
+    for i, digit in reverse(chars(parts[0]))
+        if i > 0 and i % 3 == 0 then out = "," + out
+        out = digit + out
+    let decimals = if length(parts) > 1 then "." + parts[1] else ""
+    (if n < 0 then "-" else "") + out + decimals
+
+--- Puts zeros in front of a number to make it width digits long: pad_zeros(7, 3) is "007"
+fn pad_zeros(n, width)
+    if not (n is number)
+        fail "pad_zeros needs a number, but got {type(n)}."
+    let t = text(abs(n))
+    (if n < 0 then "-" else "") + "0" * max(width - length(t), 0) + t
+
+
+test "capital letters"
+    expect capitalize("swan") == "Swan"
+    expect capitalize("") == ""
+    expect title_case("swan lake") == "Swan Lake"
+
+test "looking inside text"
+    expect is_palindrome("A man, a plan, a canal: Panama")
+    expect not is_palindrome("swan")
+    expect count_of("banana", "an") == 2
+    expect vowels("Swan Lake") == 3
+    expect is_blank("   ")
+    expect acronym("portable network graphics") == "PNG"
+
+test "shaping text"
+    expect shorten("Swan Lake", 6) == "Swan …"
+    expect shorten("Swan", 10) == "Swan"
+    expect wrap("the swan glides over the lake", 10) == "the swan\nglides\nover the\nlake"
+    expect indent("a\nb", 2) == "  a\n  b"
+    expect slug("Swan Lake, 1877!") == "swan-lake-1877"
+
+test "word games"
+    expect pig_latin("swan apple") == "answay appleway"
+    expect caesar("Swan", 1) == "Txbo"
+    expect caesar(caesar("Hello, lake!", 7), -7) == "Hello, lake!"
+
+test "numbers in words"
+    expect plural(1, "swan") == "1 swan"
+    expect plural(3, "swan") == "3 swans"
+    expect plural(2, "cherry") == "2 cherries"
+    expect plural(2, "finch") == "2 finches"
+    expect plural(2, "goose", "geese") == "2 geese"
+    expect ordinal(1) == "1st"
+    expect ordinal(22) == "22nd"
+    expect ordinal(13) == "13th"
+    expect with_commas(1234567) == "1,234,567"
+    expect with_commas(-1234.5) == "-1,234.5"
+    expect pad_zeros(7, 3) == "007"

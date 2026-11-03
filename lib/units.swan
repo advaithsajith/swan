@@ -1,0 +1,125 @@
+--- Changing between units: temperatures, distances, weights, speeds and file sizes.
+--- Bring it in with:  use units   (then units.distance(5, "km", "miles"))
+--- or pick a few:     use temperature, file_size from units
+--- Units can be short ("km") or spelled out ("kilometres"); capitals don't matter.
+
+
+-- ── the tables ──────────────────────────────────────────
+-- Each row is [name, how many of the base unit it is, other names for it].
+
+hidden fn distance_units() => [
+    ["mm", 0.001, "millimetre", "millimetres", "millimeter", "millimeters"],
+    ["cm", 0.01, "centimetre", "centimetres", "centimeter", "centimeters"],
+    ["m", 1, "metre", "metres", "meter", "meters"],
+    ["km", 1000, "kilometre", "kilometres", "kilometer", "kilometers"],
+    ["in", 0.0254, "inch", "inches"],
+    ["ft", 0.3048, "foot", "feet"],
+    ["yd", 0.9144, "yard", "yards"],
+    ["mi", 1609.344, "mile", "miles"],
+]
+
+hidden fn weight_units() => [
+    ["g", 1, "gram", "grams"],
+    ["kg", 1000, "kilogram", "kilograms", "kilo", "kilos"],
+    ["t", 1000000, "tonne", "tonnes", "ton", "tons"],
+    ["oz", 28.349523125, "ounce", "ounces"],
+    ["lb", 453.59237, "pound", "pounds", "lbs"],
+    ["st", 6350.29318, "stone", "stones"],
+]
+
+hidden fn speed_units() => [
+    ["m/s", 1, "ms", "mps", "metres per second", "meters per second"],
+    ["km/h", 1000 / 3600, "kmh", "kph", "kilometres per hour", "kilometers per hour"],
+    ["mph", 1609.344 / 3600, "miles per hour"],
+    ["knots", 1852 / 3600, "knot", "kn"],
+]
+
+
+-- ── looking units up ────────────────────────────────────
+
+hidden fn tidy(unit) => replace(replace(lower(trim(text(unit))), " ", ""), "°", "")
+
+hidden fn factor(rows, unit, what)
+    if not (unit is text)
+        fail "{what} needs the unit as text, like \"km\", but got {type(unit)}."
+    let wanted = tidy(unit)
+    for row in rows
+        for i, name in row
+            if i != 1 and tidy(name) == wanted then return row[1]
+    fail "{what} doesn't know the unit \"{unit}\". It knows: {join(map(rows, r => r[0]), ", ")}."
+
+hidden fn convert(value, from_unit, to_unit, rows, what)
+    if not (value is number)
+        fail "{what} needs a number to convert, but got {type(value)}."
+    value * factor(rows, from_unit, what) / factor(rows, to_unit, what)
+
+
+-- ── converting ──────────────────────────────────────────
+
+--- Changes a temperature between "c" (Celsius), "f" (Fahrenheit) and "k" (Kelvin): temperature(100, "c", "f") is 212
+fn temperature(value, from_unit, to_unit)
+    if not (value is number)
+        fail "temperature needs a number to convert, but got {type(value)}."
+    let celsius = match temperature_unit(from_unit)
+        "c" => value
+        "f" => (value - 32) * 5 / 9
+        "k" => value - 273.15
+    match temperature_unit(to_unit)
+        "c" => celsius
+        "f" => celsius * 9 / 5 + 32
+        "k" => celsius + 273.15
+
+hidden fn temperature_unit(unit)
+    if not (unit is text)
+        fail "temperature needs the unit as text, like \"c\", but got {type(unit)}."
+    let key = tidy(unit)
+    if key in ["c", "celsius", "centigrade"] then return "c"
+    if key in ["f", "fahrenheit"] then return "f"
+    if key in ["k", "kelvin"] then return "k"
+    fail "temperature doesn't know the unit \"{unit}\". It knows: c, f, k (or celsius, fahrenheit, kelvin)."
+
+--- Changes a distance between mm, cm, m, km, in, ft, yd and mi: distance(5, "km", "miles")
+fn distance(value, from_unit, to_unit) => convert(value, from_unit, to_unit, distance_units(), "distance")
+
+--- Changes a weight between g, kg, t, oz, lb and st: weight(70, "kg", "lb")
+fn weight(value, from_unit, to_unit) => convert(value, from_unit, to_unit, weight_units(), "weight")
+
+--- Changes a speed between m/s, km/h, mph and knots: speed(100, "km/h", "mph")
+fn speed(value, from_unit, to_unit) => convert(value, from_unit, to_unit, speed_units(), "speed")
+
+--- A number of bytes as something readable: file_size(1536) is "1.5 KB"
+fn file_size(bytes)
+    if not (bytes is number) or bytes < 0
+        fail "file_size needs a number of bytes, 0 or more, but got {bytes}."
+    if bytes == 1 then return "1 byte"
+    var amount = bytes
+    for unit in ["bytes", "KB", "MB", "GB", "TB"]
+        if amount < 1024 or unit == "TB"
+            return if unit == "bytes" then "{amount} bytes" else "{round(amount, 1)} {unit}"
+        amount = amount / 1024
+
+
+test "temperature"
+    expect temperature(100, "c", "f") == 212
+    expect temperature(32, "fahrenheit", "celsius") == 0
+    expect temperature(0, "C", "K") == 273.15
+    expect temperature(0, "°C", "K") == 273.15
+    expect round(temperature(98.6, "f", "c"), 1) == 37
+
+test "distance, weight and speed"
+    expect distance(1, "km", "m") == 1000
+    expect round(distance(5, "km", "miles"), 2) == 3.11
+    expect round(distance(2.54, "cm", "in"), 6) == 1
+    expect round(distance(3, "Feet", "Metres"), 4) == 0.9144
+    expect round(weight(1, "kg", "lb"), 1) == 2.2
+    expect round(weight(1, "stone", "lbs"), 6) == 14
+    expect round(speed(100, "km/h", "mph"), 1) == 62.1
+    expect round(speed(36, "km/h", "m/s"), 6) == 10
+
+test "file sizes"
+    expect file_size(0) == "0 bytes"
+    expect file_size(1) == "1 byte"
+    expect file_size(500) == "500 bytes"
+    expect file_size(1536) == "1.5 KB"
+    expect file_size(1048576) == "1 MB"
+    expect file_size(3 * 1024 ** 4) == "3 TB"

@@ -1,0 +1,132 @@
+--- Games of chance: coins, dice, shuffling, and picking things at random.
+--- Bring it in with:  use chance   (then chance.dice())
+--- or pick a few:     use shuffle, coin from chance
+
+
+-- ── checking what we were given ─────────────────────────
+
+hidden fn whole(n, what, least = 0)
+    if not (n is number) or floor(n) != n or n < least
+        fail "{what} needs a whole number of {least} or more, but got {n}."
+
+hidden fn a_list(xs, what)
+    if xs is range then return map(xs, x => x)
+    if not (xs is list)
+        fail "{what} needs a list, but got {type(xs)}."
+    xs
+
+
+-- ── coins and dice ──────────────────────────────────────
+
+--- Flips a coin: "heads" or "tails".
+fn coin() => if random(0, 1) == 0 then "heads" else "tails"
+
+--- Rolls a die: a number from 1 to sides (6 unless you say otherwise).
+fn dice(sides = 6)
+    whole(sides, "dice", least: 1)
+    random(1, sides)
+
+--- Rolls count dice and gives back every roll: roll(2) might be [3, 5]
+fn roll(count, sides = 6)
+    whole(count, "roll")
+    var rolls = []
+    repeat count
+        push(rolls, dice(sides))
+    rolls
+
+--- true about percent times out of 100: maybe(25) is true a quarter of the time.
+fn maybe(percent = 50)
+    if not (percent is number) or not (0 <= percent <= 100)
+        fail "maybe needs a percent from 0 to 100, but got {percent}."
+    random() * 100 < percent
+
+--- A random number anywhere between low and high, decimals included: between(0, 1.5)
+fn between(low, high)
+    if not (low is number and high is number)
+        fail "between needs two numbers."
+    min(low, high) + random() * abs(high - low)
+
+
+-- ── shuffling and picking ───────────────────────────────
+
+--- The list in a random order. The list you gave isn't changed.
+fn shuffle(xs)
+    var out = copy(a_list(xs, "shuffle"))
+    var i = length(out) - 1
+    while i > 0
+        let j = random(0, i)
+        out[i], out[j] = out[j], out[i]
+        i -= 1
+    out
+
+--- One item from the list, picked at random.
+fn pick(xs)
+    let items = a_list(xs, "pick")
+    if length(items) == 0
+        fail "pick needs at least one item, but the list is empty."
+    random(items)
+
+--- count different items from the list, picked at random with no repeats.
+fn pick_many(xs, count)
+    let items = a_list(xs, "pick_many")
+    whole(count, "pick_many")
+    if count > length(items)
+        fail "pick_many can't pick {count} different items from a list of {length(items)}."
+    if count == 0 then return []
+    let mixed = shuffle(items)
+    [mixed[i] for i in 0..<count]
+
+--- Picks one key from a map of option: weight. Bigger weights come up more often: weighted({swan: 3, duck: 1})
+fn weighted(weights)
+    if not (weights is map) or length(keys(weights)) == 0
+        fail "weighted needs a map of option: weight, like: \{swan: 3, duck: 1\}"
+    for option, w in weights
+        if not (w is number) or w < 0
+            fail "weighted needs weights of 0 or more, but '{option}' is {w}."
+    let total = sum(values(weights))
+    if total == 0
+        fail "weighted needs at least one weight above 0."
+    var mark = random() * total
+    for option, w in weights
+        mark -= w
+        if mark < 0 then return option
+    last(keys(weights))
+
+--- A random code of letters and digits, handy for passwords and game rooms: code(8)
+--- It skips characters that look alike (no 0 and O, or 1, I and l) unless you give your own with using:.
+fn code(size = 6, using = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+    whole(size, "code")
+    if not (using is text) or using == ""
+        fail "code needs some text to pick characters from."
+    var out = ""
+    repeat size
+        out += random(chars(using))
+    out
+
+
+test "coins and dice"
+    expect coin() in ["heads", "tails"]
+    expect 1 <= dice() <= 6
+    expect dice(1) == 1
+    expect length(roll(3)) == 3
+    expect roll(0) == []
+    expect all(roll(20, 4), r => 1 <= r <= 4)
+
+test "maybe and between"
+    expect not maybe(0)
+    expect maybe(100)
+    expect 2 <= between(2, 3) <= 3
+    expect 2 <= between(3, 2) <= 3
+
+test "shuffling and picking"
+    let cards = [1, 2, 3, 4, 5]
+    expect sort(shuffle(cards)) == cards
+    expect cards == [1, 2, 3, 4, 5]
+    expect pick(cards) in cards
+    expect pick(1..3) in [1, 2, 3]
+    expect sort(pick_many(cards, 5)) == cards
+    expect length(unique(pick_many(cards, 3))) == 3
+    expect pick_many(cards, 0) == []
+    expect weighted({swan: 1, duck: 0}) == "swan"
+    expect length(code()) == 6
+    expect code(4, using: "a") == "aaaa"
